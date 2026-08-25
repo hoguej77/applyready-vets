@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "status": "draft",
+  "last_official_apple_review": "2026-08-01",
+  "listing": {
+    "name": "ApplyReady Vets",
+    "subtitle": "Veteran Career Builder",
+    "promotional_text": "Build an evidence-backed job packet from your resume, service history, and target job posting—privately, with every employer-facing claim under your control.",
+    "description": "ApplyReady Vets helps veterans turn verified military and civilian experience into honest, job-specific application materials.\n\nSTART WITH REAL EVIDENCE\nImport your resume, add service experience, and save a target job. The app keeps employer-facing wording tied to information you supplied.\n\nBUILD A COMPLETE JOB PACKET\nCreate PDF, RTF, and parser-friendly TXT resumes, a LinkedIn copy kit, readiness checks, and an organized application workspace.\n\nPREPARE FOR FEDERAL OR CIVILIAN WORK\nUse separate civilian and federal modes, requirement-by-requirement readiness checks, and an offline military-to-civilian occupation crosswalk.\n\nREVIEW BEFORE YOU EXPORT\nTruth Lock shows the evidence behind proposed wording and blocks unsupported or sensitive claims from employer-facing export until they are resolved. You remain responsible for every final statement.\n\nPRIVATE BY DEFAULT\nThe core workflow runs locally without an account. Optional on-device assistance is used only when available and enabled. This release does not include advertising tracking or a production cloud-AI endpoint.\n\nTRACK THE APPLICATION\nSave job links from common job sites, deadlines, notes, required documents, status, and packet versions without logging in to, scraping, or applying through those services.\n\nONE HONEST PRICE\nOne complete application workspace is free. ApplyReady Vets Complete is a $5.99 one-time In-App Purchase that unlocks unlimited workspaces. No subscription, ads, credit packs, or export ransom.\n\nApplyReady Vets is independent and is not affiliated with or endorsed by the U.S. Department of Veterans Affairs, Department of Defense, USAJOBS, any military branch, or any employer. It does not provide legal, benefits, disability, eligibility, hiring, or placement decisions, and it cannot guarantee ATS results or employment.",
+    "keywords": "military transition,resume,federal career,job tracker,civilian,occupation,readiness,workforce",
+    "primary_category": "Business",
+    "secondary_category": "Productivity",
+    "support_url": "[FINAL_HTTPS_SUPPORT_URL]",
+    "privacy_policy_url": "[FINAL_HTTPS_PRIVACY_URL]",
+    "marketing_url": "[FINAL_HTTPS_MARKETING_URL]",
+    "copyright": "2026 [FINAL_LEGAL_ENTITY_OR_OWNER]",
+    "release_method": "manual"
+  },
+  "build": {
+    "marketing_version": "0.7.0",
+    "build_number": "18",
+    "minimum_os": "27.0",
+    "bundle_id": "com.jonathanhogue.applyreadyvets"
+  },
+  "in_app_purchase": {
+    "reference_name": "ApplyReady Vets Complete",
+    "product_id": "com.jonathanhogue.applyreadyvets.complete.lifetime",
+    "type": "non-consumable",
+    "us_launch_price": "$5.99",
+    "display_name": "ApplyReady Vets Complete",
+    "description": "Unlock unlimited application workspaces with one purchase. The complete first workspace remains free.",
+    "review_screenshot": "[FINAL_IAP_REVIEW_SCREENSHOT]"
+  },
+  "review": {
+    "contact_name": "Jonathan Hogue",
+    "contact_email": "[FINAL_MONITORED_DOMAIN_EMAIL]",
+    "contact_phone": "[FINAL_REVIEW_PHONE]",
+    "notes": "ApplyReady Vets is an independent veteran career-writing and job-packet utility. No account is required. On first launch, choose Try a safe demo to load synthetic information and exercise Import, Profile, Analysis, Truth Lock, LinkedIn copy, federal checks, tracker, and export without using personal data. The app does not log in to, scrape, publish to, or automate applications on third-party job services. AI assistance is optional; the private deterministic core remains available without it. Every employer-facing export requires candidate review and Truth Lock verification. The app makes no benefits, disability, legal, eligibility, hiring, placement, or ATS guarantee. The free tier includes one complete workspace. ApplyReady Vets Complete is the only consumer purchase and unlocks unlimited workspaces. Use the visible Complete screen to test purchase and Settings > Restore Purchases to test restore. Submit the first non-consumable with this app version. The app is not affiliated with or endorsed by VA, DoD, USAJOBS, any military branch, Apple, any job platform, or any employer. No production external-service endpoint is configured in this Release build."
+  },
+  "privacy_answer_draft": {
+    "current_release_configuration": "No, we do not collect data from this app",
+    "revalidate_against_final_signed_binary": true,
+    "stop_if_production_service_or_telemetry_is_enabled": true
+  },
+  "claim_controls": {
+    "prohibited_public_claims": [
+      "guaranteed job",
+      "guaranteed interview",
+      "beats every ATS",
+      "100% ATS",
+      "VA approved",
+      "official VA app",
+      "self-healing",
+      "perfect AI"
+    ],
+    "required_public_disclosures": [
+      "independent and not government affiliated",
+      "candidate reviews final wording",
+      "no hiring or ATS guarantee",
+      "one free workspace and $5.99 one-time Complete purchase"
+    ]
+  },
+  "official_sources": [
+    "https://developer.apple.com/app-store/review/guidelines/",
+    "https://developer.apple.com/help/app-store-connect/reference/app-information/app-information",
+    "https://developer.apple.com/help/app-store-connect/reference/app-information/platform-version-information",
+    "https://developer.apple.com/app-store/app-privacy-details/"
+  ]
+}

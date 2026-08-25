@@ -1,0 +1,65 @@
+{
+  "title": "ProposalEnvelope",
+  "x-order": [
+    "proposals"
+  ],
+  "properties": {
+    "proposals": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ResumeEdit"
+      }
+    }
+  },
+  "type": "object",
+  "required": [
+    "proposals"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "ResumeEdit": {
+      "title": "ResumeEdit",
+      "x-order": [
+        "section",
+        "original_text",
+        "proposed_text",
+        "rationale",
+        "evidence_ids",
+        "confidence"
+      ],
+      "properties": {
+        "section": {
+          "type": "string"
+        },
+        "original_text": {
+          "type": "string"
+        },
+        "proposed_text": {
+          "type": "string"
+        },
+        "rationale": {
+          "type": "string"
+        },
+        "evidence_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "confidence": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "section",
+        "original_text",
+        "proposed_text",
+        "rationale",
+        "evidence_ids",
+        "confidence"
+      ],
+      "additionalProperties": false,
+      "type": "object"
+    }
+  }
+}

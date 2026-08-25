@@ -1,0 +1,188 @@
+name: ApplyReadyVets
+options:
+  bundleIdPrefix: com.jonathanhogue.applyreadyvets
+  deploymentTarget:
+    iOS: "27.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    DEVELOPMENT_TEAM: ""
+    CODE_SIGN_STYLE: Automatic
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+targets:
+  ApplyReadyVets:
+    type: application
+    platform: iOS
+    sources:
+      - path: ApplyReadyVets
+        excludes:
+          - Resources/Info.plist
+          - Resources/Info-Debug.plist
+          - Resources/ApplyReadyVets.entitlements
+          - Resources/ApplyReadyVets.storekit
+          - Resources/Brand/ApplyReadyVetsLogoMaster.png
+      - path: Packages/ApplyReadyVetsCore/Sources/ApplyReadyVetsCore
+      - path: Shared
+    entitlements:
+      path: ApplyReadyVets/Resources/ApplyReadyVets.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.jonathanhogue.applyreadyvets
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.jonathanhogue.applyreadyvets
+        PRODUCT_NAME: ApplyReadyVets
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CURRENT_PROJECT_VERSION: 18
+        MARKETING_VERSION: 0.7.0
+      configs:
+        Debug:
+          INFOPLIST_FILE: ApplyReadyVets/Resources/Info-Debug.plist
+          HOGUE_API_BASE_URL: http://127.0.0.1:8000
+          HOGUE_STOREFRONT_ENABLED: "YES"
+          APPLYREADYVETS_SUPPORT_URL: ""
+          APPLYREADYVETS_PRIVACY_POLICY_URL: ""
+        Release:
+          HOGUE_API_BASE_URL: ""
+          HOGUE_STOREFRONT_ENABLED: "YES"
+          APPLYREADYVETS_SUPPORT_URL: ""
+          APPLYREADYVETS_PRIVACY_POLICY_URL: ""
+    info:
+      path: ApplyReadyVets/Resources/Info.plist
+      properties:
+        CFBundleDisplayName: ApplyReady Vets
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        UILaunchScreen:
+          UIColorName: LaunchBackground
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
+        CFBundleURLTypes:
+          - CFBundleURLName: com.jonathanhogue.applyreadyvets.navigation
+            CFBundleURLSchemes:
+              - applyreadyvets
+        HOGUE_API_BASE_URL: $(HOGUE_API_BASE_URL)
+        HOGUE_STOREFRONT_ENABLED: $(HOGUE_STOREFRONT_ENABLED)
+        APPLYREADYVETS_SUPPORT_URL: $(APPLYREADYVETS_SUPPORT_URL)
+        APPLYREADYVETS_PRIVACY_POLICY_URL: $(APPLYREADYVETS_PRIVACY_POLICY_URL)
+        ITSAppUsesNonExemptEncryption: false
+    dependencies:
+      - target: ApplyReadyVetsShare
+        embed: true
+      - target: ApplyReadyVetsWidget
+        embed: true
+  ApplyReadyVetsShare:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: ApplyReadyVetsShare
+        excludes:
+          - ApplyReadyVetsShare.entitlements
+          - Info.plist
+      - path: Shared/SharedJobInbox.swift
+    entitlements:
+      path: ApplyReadyVetsShare/ApplyReadyVetsShare.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.jonathanhogue.applyreadyvets
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.jonathanhogue.applyreadyvets.share
+        PRODUCT_NAME: ApplyReadyVetsShare
+        CURRENT_PROJECT_VERSION: 18
+        MARKETING_VERSION: 0.7.0
+        SKIP_INSTALL: YES
+        APPLICATION_EXTENSION_API_ONLY: YES
+    info:
+      path: ApplyReadyVetsShare/Info.plist
+      properties:
+        CFBundleDisplayName: Save to ApplyReady Vets
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.share-services
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
+          NSExtensionAttributes:
+            NSExtensionActivationRule:
+              NSExtensionActivationSupportsText: true
+              NSExtensionActivationSupportsWebURLWithMaxCount: 1
+  ApplyReadyVetsWidget:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: ApplyReadyVetsWidget
+        excludes:
+          - ApplyReadyVetsWidget.entitlements
+          - Info.plist
+          - PrivacyInfo.xcprivacy
+      - path: Shared/ApplicationWidgetSnapshot.swift
+      - path: ApplyReadyVetsWidget/PrivacyInfo.xcprivacy
+        buildPhase: resources
+    entitlements:
+      path: ApplyReadyVetsWidget/ApplyReadyVetsWidget.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.jonathanhogue.applyreadyvets
+        com.apple.developer.default-data-protection: NSFileProtectionComplete
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.jonathanhogue.applyreadyvets.widget
+        PRODUCT_NAME: ApplyReadyVetsWidget
+        CURRENT_PROJECT_VERSION: 18
+        MARKETING_VERSION: 0.7.0
+        SKIP_INSTALL: YES
+        APPLICATION_EXTENSION_API_ONLY: YES
+    info:
+      path: ApplyReadyVetsWidget/Info.plist
+      properties:
+        CFBundleDisplayName: ApplyReady Vets
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+  ApplyReadyVetsTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: ApplyReadyVetsTests
+      - path: ApplyReadyVets/Resources/ApplyReadyVets.storekit
+        buildPhase: resources
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+    dependencies:
+      - target: ApplyReadyVets
+  ApplyReadyVetsUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: ApplyReadyVetsUITests
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.jonathanhogue.applyreadyvets.uitests
+    dependencies:
+      - target: ApplyReadyVets
+schemes:
+  ApplyReadyVets:
+    build:
+      targets:
+        ApplyReadyVets: all
+        ApplyReadyVetsShare: all
+        ApplyReadyVetsWidget: all
+        ApplyReadyVetsTests: [test]
+        ApplyReadyVetsUITests: [test]
+    test:
+      storeKitConfiguration: ApplyReadyVets/Resources/ApplyReadyVets.storekit
+      targets:
+        - ApplyReadyVetsTests
+        - ApplyReadyVetsUITests
+    run:
+      config: Debug
+      storeKitConfiguration: ApplyReadyVets/Resources/ApplyReadyVets.storekit

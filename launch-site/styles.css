@@ -1,0 +1,199 @@
+:root {
+  color-scheme: light dark;
+  --navy: #0b2e4f;
+  --navy-strong: #071f36;
+  --blue: #0b6fb8;
+  --blue-hover: #075a95;
+  --red: #b51f2e;
+  --gold: #f4c95d;
+  --paper: #f7f9fc;
+  --surface: #ffffff;
+  --ink: #142130;
+  --muted: #526273;
+  --line: #cbd5df;
+  --focus: #ffbf47;
+  --max: 72rem;
+}
+
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+a { color: #075f9f; }
+a:hover { color: var(--blue-hover); }
+a:focus-visible, button:focus-visible {
+  outline: 0.22rem solid var(--focus);
+  outline-offset: 0.18rem;
+}
+
+.skip-link {
+  position: absolute;
+  left: 1rem;
+  top: -5rem;
+  z-index: 100;
+  background: var(--surface);
+  color: var(--ink);
+  padding: 0.7rem 1rem;
+  border: 0.15rem solid var(--navy);
+}
+.skip-link:focus { top: 1rem; }
+
+.draft-banner {
+  background: #fff1c2;
+  color: #421f00;
+  border-bottom: 0.18rem solid #a45b00;
+  padding: 0.65rem 1rem;
+  font-weight: 750;
+  text-align: center;
+}
+
+header {
+  background: var(--navy);
+  color: #fff;
+}
+
+.nav-wrap, main, footer > div {
+  width: min(calc(100% - 2rem), var(--max));
+  margin-inline: auto;
+}
+
+.nav-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1.5rem;
+  padding: 1rem 0;
+}
+
+.brand {
+  color: #fff;
+  font-size: 1.2rem;
+  font-weight: 800;
+  text-decoration: none;
+  letter-spacing: 0.01em;
+}
+
+nav ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+nav a { color: #fff; font-weight: 650; text-underline-offset: 0.23rem; }
+nav a:hover { color: var(--gold); }
+
+main { padding: 2.6rem 0 4rem; }
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(16rem, 0.75fr);
+  gap: 2rem;
+  align-items: center;
+  padding: 2.5rem;
+  background: linear-gradient(135deg, var(--navy), var(--navy-strong));
+  border-radius: 1.25rem;
+  color: #fff;
+  box-shadow: 0 1rem 2.5rem rgba(7, 31, 54, 0.18);
+}
+
+.eyebrow {
+  margin: 0 0 0.45rem;
+  color: var(--gold);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.83rem;
+}
+
+h1, h2, h3 { line-height: 1.18; }
+h1 { margin: 0 0 0.8rem; font-size: clamp(2rem, 6vw, 4.25rem); }
+h2 { margin-top: 2.7rem; font-size: clamp(1.5rem, 3vw, 2.2rem); }
+h3 { margin-top: 0; }
+
+.lede { font-size: 1.2rem; max-width: 48rem; }
+
+.price-card, .card, .notice {
+  background: var(--surface);
+  color: var(--ink);
+  border: 0.08rem solid var(--line);
+  border-radius: 1rem;
+  padding: 1.35rem;
+}
+
+.price-card strong { display: block; font-size: 2rem; color: var(--navy); }
+.price-card p:last-child { margin-bottom: 0; }
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.card p:last-child, .notice p:last-child { margin-bottom: 0; }
+.card h3 { color: var(--navy); }
+
+.button {
+  display: inline-block;
+  margin-top: 0.7rem;
+  background: var(--blue);
+  color: #fff;
+  padding: 0.72rem 1rem;
+  border-radius: 0.65rem;
+  font-weight: 750;
+  text-decoration: none;
+}
+.button:hover { color: #fff; background: var(--blue-hover); }
+
+.notice {
+  margin: 1.5rem 0;
+  border-left: 0.35rem solid var(--red);
+}
+
+.meta { color: var(--muted); font-size: 0.94rem; }
+
+table { width: 100%; border-collapse: collapse; background: var(--surface); }
+th, td { border: 0.08rem solid var(--line); padding: 0.75rem; text-align: left; vertical-align: top; }
+th { background: #e8eef5; color: var(--navy-strong); }
+
+footer {
+  background: var(--navy-strong);
+  color: #fff;
+  padding: 2rem 0;
+}
+footer a { color: #fff; }
+
+@media (max-width: 52rem) {
+  .hero { grid-template-columns: 1fr; padding: 1.5rem; }
+  .grid { grid-template-columns: 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #0d1721;
+    --surface: #152536;
+    --ink: #f4f7fa;
+    --muted: #c6d0da;
+    --line: #496074;
+  }
+  a { color: #72c5ff; }
+  th { background: #233b51; color: #fff; }
+  .draft-banner { background: #5c3600; color: #fff4d6; }
+  .price-card strong, .card h3 { color: #a9dcff; }
+}
+
