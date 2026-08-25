@@ -1,29 +1,35 @@
-# ApplyReady Vets iOS
+# ApplyReady Vets
 
-ApplyReady Vets is a working local-first SwiftUI beta for veterans. It turns verified military and civilian experience
-into clearer application material while preventing unsupported claims. The normal iPhone workflow does not require an
-account, network connection, AI model, OpenAI key, or Mac service.
+> **An iOS 27-native, local-first career workspace for veterans.**
+
+ApplyReady Vets turns verified military and civilian experience into clearer application material while preventing
+unsupported claims. Its normal iPhone workflow works without an account, network connection, external AI provider,
+API key, or Mac service.
+
+This repository contains the current SwiftUI product source, native iOS extensions, local career engine, privacy
+controls, and release documentation. Earlier Hogue ResMaster Python releases are retained as historical lineage; the
+active product is **ApplyReady Vets**.
 
 The active identity is:
 
-- App Store working name: **ApplyReady Vets**
+- Public product name: **ApplyReady Vets**
 - Subtitle: `Veteran Career Builder`
 - Tagline: `From service to submitted.`
 - Bundle ID: `com.jonathanhogue.applyreadyvets`
-- Developer display goal: `Jonathan Hogue Develops`
+- Publisher: `Jonathan Hogue Develops`
 - Marketing version: `0.7.0`
 - Build number: `18`
+- Platform: `iOS 27`
 - Xcode source of truth: `ios/project.yml`
 
 The Xcode project, scheme, app/test targets, Swift module, shared core package, product, and source folders all use
 `ApplyReadyVets`. `HogueResMaster` and `MusterForward` remain only in historical records and compatibility migrations
 for earlier beta data. ApplyReady Vets is a working name pending formal trademark, domain, and App Store clearance.
 
-This folder is self-contained. The original Python files in Downloads and iCloud were not modified. ApplyReady Vets
-0.7.0, build 18, is configured for Xcode 27 beta 4 (`27A5228h`), Swift 6.4, and the iOS 27 beta SDK on this M4 Mac. The
-product intentionally requires iOS 27; it does not carry an older-iOS compatibility target. The current local quality
-and accessibility suites passed on August 2, 2026. Signed physical-device testing and a final run with the
-non-beta Xcode accepted by App Store Connect remain release gates.
+This folder is self-contained. ApplyReady Vets 0.7.0, build 18, is configured for Xcode 27 (`27A5228h`), Swift 6.4,
+and the iOS 27 SDK. The product intentionally requires iOS 27; it does not carry an older-iOS compatibility target.
+Generic iOS builds, test-target builds, and the core package suite are validated locally. Signed physical-device
+testing, final accessibility review, and the non-beta Xcode accepted by App Store Connect remain release gates.
 
 ## Product and business decision
 

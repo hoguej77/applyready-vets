@@ -4,6 +4,33 @@ The 0.7.0 section describes the current source. Older numbered sections are date
 prices, operating-system targets, names, tip experiments, and feature gaps are preserved to explain the product's
 evolution and are not current promises.
 
+## Current repository release — August 25, 2026
+
+### ApplyReady Vets — iOS 27-native beta, source build 18
+
+This release establishes **ApplyReady Vets** as the public product identity. The repository now presents the current
+SwiftUI application, its privacy-first local career engine, extensions, tests, and product documentation; the earlier
+Hogue ResMaster Python releases remain preserved as historical lineage.
+
+- Adds private job-status evidence: each application can retain up to six job-portal, recruiter, or interview
+  screenshots/photos in protected local storage. People can preview, explicitly share, or delete each item without
+  embedding it in the tracker database or sending it to a career service.
+- Adds Headshot Studio, using the native Image Playground system experience on supported iOS 27 devices. A person
+  chooses a private source photo and career framing, reviews the generated result, and explicitly shares or deletes
+  it. Unsupported devices receive an honest, shareable photo brief rather than a broken AI action.
+- Keeps a restrained iOS 27 design: four stable top-level destinations, native pickers and sheets, Dynamic Type,
+  semantic color, SF Symbols, and accessibility labels. The app does not add a generic third-party chatbot or place
+  sensitive career data in a remote service by default.
+- Hardens privacy and data handling with file-protected image storage, safe filenames, attachment limits, atomic
+  tracker persistence, backward-compatible tracker decoding, and complete removal of app-managed images during local
+  data erase.
+- Validated the current source with a generic iOS build, a generic test-target build, and all 17 core Swift package
+  tests. Live Image Playground and UI verification still require a supported physical device or installed iOS 27
+  simulator runtime.
+
+This is a source-release milestone, not an App Store or TestFlight claim. Store setup, signed-device testing, legal
+review, privacy-policy hosting, and App Review remain separate release gates.
+
 ## 0.7.0 beta — build 18 — July 30, 2026
 
 Validation update (August 2): the current Xcode 27 beta 4 clean iPhone 17 Pro Simulator pass is green—112 native tests
