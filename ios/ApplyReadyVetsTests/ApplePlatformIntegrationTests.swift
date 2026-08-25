@@ -3,6 +3,32 @@ import XCTest
 
 final class ApplePlatformIntegrationTests: XCTestCase {
     @MainActor
+    func testPrepareIndeedIntentRoutesOnlyIndeedLinks() async throws {
+        let defaults = UserDefaults.standard
+        defer {
+            defaults.removeObject(forKey: ShortcutDestination.storageKey)
+            defaults.removeObject(forKey: ShortcutDestination.pendingJobURLKey)
+        }
+        defaults.removeObject(forKey: ShortcutDestination.storageKey)
+        defaults.removeObject(forKey: ShortcutDestination.pendingJobURLKey)
+
+        var intent = PrepareIndeedApplicationIntent()
+        intent.jobURL = try XCTUnwrap(
+            URL(string: "https://www.indeed.com/viewjob?jk=verified")
+        )
+        _ = try await intent.perform()
+
+        XCTAssertEqual(
+            defaults.string(forKey: ShortcutDestination.storageKey),
+            ShortcutDestination.prepareIndeed.rawValue
+        )
+        XCTAssertEqual(
+            defaults.string(forKey: ShortcutDestination.pendingJobURLKey),
+            "https://www.indeed.com/viewjob?jk=verified"
+        )
+    }
+
+    @MainActor
     func testTruthLockPreferenceDefaultsOnAndPersistsExplicitChoice() {
         let defaults = UserDefaults.standard
         let key = AppModel.truthLockPreferenceKey

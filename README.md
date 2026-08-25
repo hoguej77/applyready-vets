@@ -72,6 +72,10 @@ before submission.
   employer, role, job ID, status, notes, deadline, required documents, numbered export history, and up to six private
   status screenshots or photos. A portal confirmation or interview invite can be reviewed or explicitly shared from
   the application detail; the image is not embedded in the tracker database or sent to a career service.
+- **Indeed Ready** recognizes an Indeed link, prepares a candidate-reviewed resume packet locally, offers a Siri or
+  Shortcuts entry point for saving the link, and opens the exact posting in one tap. The veteran reviews all employer
+  questions and submits on Indeed; ApplyReady Vets never stores Indeed credentials, scrapes private pages, or
+  auto-submits an application.
 - Each tracked application has its own protected working snapshot for draft, analysis, Truth Lock decisions, active
   step, LinkedIn kit, and export state; switching jobs does not reuse another application's working material.
 - Tracker data is local, file-protected, checksummed, atomically saved, and recoverable from a last-known-good copy.

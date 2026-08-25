@@ -694,6 +694,20 @@ final class AppModel: ObservableObject {
                 errorMessage = AppInputError.invalidJobURL.localizedDescription
             }
             step = .importDocuments
+        case .prepareIndeed:
+            let pendingURL = UserDefaults.standard.string(forKey: ShortcutDestination.pendingJobURLKey) ?? ""
+            UserDefaults.standard.removeObject(forKey: ShortcutDestination.pendingJobURLKey)
+            guard let normalizedURL = JobURLPolicy.normalize(pendingURL),
+                  JobPlatform.detect(from: normalizedURL) == .indeed else {
+                errorMessage = "Use a public Indeed job link without a username or password."
+                step = .importDocuments
+                return
+            }
+            jobURL = normalizedURL
+            draft.jobURL = normalizedURL
+            statusMessage = "Indeed job link saved. Paste or import the posting text, then review your evidence-backed packet before opening Indeed to submit."
+            persistDraft()
+            step = .importDocuments
         }
     }
 

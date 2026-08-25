@@ -18,6 +18,10 @@ Hogue ResMaster Python releases remain preserved as historical lineage.
 - Adds Headshot Studio, using the native Image Playground system experience on supported iOS 27 devices. A person
   chooses a private source photo and career framing, reviews the generated result, and explicitly shares or deletes
   it. Unsupported devices receive an honest, shareable photo brief rather than a broken AI action.
+- Adds **Indeed Ready**: the app recognizes a public Indeed link, routes it through Siri or Shortcuts into a local
+  application workspace, prepares a reviewed resume packet, and opens the original posting in one tap. It never
+  stores Indeed credentials, scrapes private pages, answers employer screening questions, or auto-submits an
+  application.
 - Keeps a restrained iOS 27 design: four stable top-level destinations, native pickers and sheets, Dynamic Type,
   semantic color, SF Symbols, and accessibility labels. The app does not add a generic third-party chatbot or place
   sensitive career data in a remote service by default.

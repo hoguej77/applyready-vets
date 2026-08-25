@@ -38,7 +38,8 @@ struct ExportStepView: View {
                        let reviewedResumeText = model.candidateReviewedResumeText {
                         ApplicationHandoffCard(
                             jobURL: jobURL,
-                            finalResumeText: reviewedResumeText
+                            finalResumeText: reviewedResumeText,
+                            resumeFileURL: model.exportPDFURL ?? model.exportRichTextURL ?? model.exportURL
                         )
                     }
 

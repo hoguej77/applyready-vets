@@ -6,6 +6,7 @@ enum ShortcutDestination: String {
     case reviewTruthLock
     case buildLinkedIn
     case saveJob
+    case prepareIndeed
 
     static let storageKey = "ApplyReadyVets.pendingShortcut"
     static let pendingJobURLKey = "ApplyReadyVets.pendingJobURL"
@@ -99,6 +100,40 @@ struct SaveJobLinkIntent: AppIntent {
     }
 }
 
+struct PrepareIndeedApplicationIntent: AppIntent {
+    static let title: LocalizedStringResource = "Prepare an Indeed Application"
+    static let description = IntentDescription("Save an Indeed job link and open ApplyReady Vets to prepare a candidate-reviewed application packet.")
+    static let supportedModes: IntentModes = .foreground(.immediate)
+
+    @Parameter(title: "Indeed Job URL")
+    var jobURL: URL
+
+    static var parameterSummary: some ParameterSummary {
+        Summary("Prepare an Indeed application for \(\.$jobURL)")
+    }
+
+    @MainActor
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        guard let normalizedJobURL = JobURLPolicy.normalize(jobURL.absoluteString) else {
+            return .result(
+                dialog: "That link was not saved. Use a public Indeed job link without a username or password."
+            )
+        }
+        guard JobPlatform.detect(from: normalizedJobURL) == .indeed else {
+            return .result(
+                dialog: "That does not appear to be an Indeed job link. Use Save a Job Link for another job site."
+            )
+        }
+        ShortcutRouter.request(
+            .prepareIndeed,
+            normalizedJobURL: normalizedJobURL
+        )
+        return .result(
+            dialog: "Continue in ApplyReady Vets to prepare your reviewed Indeed application packet. You will review and submit on Indeed yourself."
+        )
+    }
+}
+
 struct ApplyReadyVetsShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(
@@ -133,6 +168,15 @@ struct ApplyReadyVetsShortcuts: AppShortcutsProvider {
             ],
             shortTitle: "Save job link",
             systemImageName: "link.badge.plus"
+        )
+        AppShortcut(
+            intent: PrepareIndeedApplicationIntent(),
+            phrases: [
+                "Prepare an Indeed application with \(.applicationName)",
+                "Save an Indeed job with \(.applicationName)"
+            ],
+            shortTitle: "Prepare Indeed job",
+            systemImageName: "checklist"
         )
     }
 }
