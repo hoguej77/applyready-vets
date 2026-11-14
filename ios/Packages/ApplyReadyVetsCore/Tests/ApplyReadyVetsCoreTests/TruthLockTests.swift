@@ -60,6 +60,127 @@ import Testing
     }
 }
 
+@Test func truthLockDoesNotTrustALocalRuleSourceLabelByItself() {
+    let evidence = [
+        EvidenceItem(
+            id: "resume:001",
+            source: "resume",
+            section: "experience",
+            text: "Managed logistics operations."
+        ),
+    ]
+    let forged = ProposedEdit(
+        id: "forged-local-rule",
+        section: "experience",
+        originalText: "Managed logistics operations.",
+        proposedText: "Managed logistics operations and built vendor relationships.",
+        rationale: "Forged local rule",
+        evidenceIDs: ["resume:001"],
+        confidence: 1,
+        source: "private-local-rules"
+    )
+    let allowedTranslation = ProposedEdit(
+        id: "known-local-rule",
+        section: "experience",
+        originalText: "MOS 88M",
+        proposedText: "Motor Transport Operator (88M) — transportation and logistics operations",
+        rationale: "Known translation",
+        evidenceIDs: ["resume:002"],
+        confidence: 0.82,
+        source: "private-local-rules"
+    )
+    let translationEvidence = evidence + [
+        EvidenceItem(
+            id: "resume:002",
+            source: "resume",
+            section: "experience",
+            text: "MOS 88M"
+        ),
+    ]
+
+    #expect(TruthLock.validate(forged, evidence: evidence).accepted == false)
+    #expect(TruthLock.validate(allowedTranslation, evidence: translationEvidence).accepted)
+
+    let profileEvidence = EvidenceItem(
+        id: "veteran:001",
+        source: "veteran_input",
+        section: "military service",
+        text: "Army occupation code: 88M"
+    )
+    let forgedProfilePlacement = ProposedEdit(
+        id: "forged-profile-placement",
+        section: "experience",
+        originalText: "Managed logistics operations.",
+        proposedText: "Managed logistics operations.\nMotor Transport Operator (88M) — transportation and logistics operations",
+        rationale: "Forged placement",
+        evidenceIDs: ["veteran:001"],
+        confidence: 1,
+        source: "private-local-rules"
+    )
+    #expect(TruthLock.validate(forgedProfilePlacement, evidence: evidence + [profileEvidence]).accepted == false)
+
+    let profileAnchor = EvidenceItem(
+        id: "resume:003",
+        source: "resume",
+        section: "military experience",
+        text: "Led 12 personnel."
+    )
+    let allowedProfilePlacement = ProposedEdit(
+        id: "allowed-profile-placement",
+        section: "military experience",
+        originalText: "MILITARY EXPERIENCE",
+        proposedText: "MILITARY EXPERIENCE\nMotor Transport Operator (88M) — transportation and logistics operations",
+        rationale: "Known placement",
+        evidenceIDs: ["veteran:001"],
+        confidence: 0.72,
+        source: "private-local-rules"
+    )
+    #expect(TruthLock.validate(
+        allowedProfilePlacement,
+        evidence: [profileAnchor, profileEvidence]
+    ).accepted)
+}
+
+@Test func truthLockRejectsEscalatedVerbsAndNovelShortTechnicalTerms() {
+    let evidence = [
+        EvidenceItem(
+            id: "resume:001",
+            source: "resume",
+            section: "experience",
+            text: "Coordinated schedules."
+        ),
+        EvidenceItem(
+            id: "resume:002",
+            source: "resume",
+            section: "experience",
+            text: "Managed systems."
+        ),
+    ]
+    let escalation = ProposedEdit(
+        id: "escalated-verb",
+        section: "experience",
+        originalText: "Coordinated schedules.",
+        proposedText: "Led schedules.",
+        rationale: "Escalated verb",
+        evidenceIDs: ["resume:001"],
+        confidence: 1
+    )
+    #expect(TruthLock.validate(escalation, evidence: evidence).accepted == false)
+
+    for term in ["C++", "C#", "AI", "R"] {
+        let novelSkill = ProposedEdit(
+            id: "novel-\(term)",
+            section: "experience",
+            originalText: "Managed systems.",
+            proposedText: "Managed systems with \(term).",
+            rationale: "Novel skill",
+            evidenceIDs: ["resume:002"],
+            confidence: 1
+        )
+        #expect(TruthLock.validate(novelSkill, evidence: evidence).accepted == false)
+    }
+}
+
 @Test func safetyPolicyDoesNotMisclassifyOrdinarySapOrOperationalReadiness() {
     #expect(!SensitiveContentPolicy.hasCriticalFinding(in: "Managed SAP ERP migration."))
     #expect(!SensitiveContentPolicy.hasCriticalFinding(in: "Improved operational readiness."))

@@ -211,6 +211,22 @@ import Testing
     #expect(!kit.skills.contains { $0.caseInsensitiveCompare("AWS") == .orderedSame })
 }
 
+@Test func keywordOverlapDoesNotTreatNegatedOrTrainingOnlyTermsAsQualifications() {
+    let response = LocalCareerEngine.analyze(TailorRequest(
+        resumeText: "No experience with AWS.\nCompleted basic AWS fundamentals training.",
+        jobText: "Job Title: Cloud Engineer\nRequirements: AWS cloud infrastructure",
+        profile: CandidateProfile(),
+        mode: .civilian,
+        useAI: false,
+        aiConsent: false
+    ))
+
+    #expect(response.job.missingKeywords.contains("aws"))
+    #expect(response.scores.qualificationCoverage == 0)
+    #expect(response.scores.applicationReadiness == 0)
+    #expect(response.scores.disclaimer.contains("cannot verify qualifications"))
+}
+
 @Test func statusEvidenceKeepsLegacyTrackerFilesReadableAndRejectsUnsafeNames() throws {
     let validEvidence = JobStatusEvidence(
         filename: "550E8400-E29B-41D4-A716-446655440000.jpg"

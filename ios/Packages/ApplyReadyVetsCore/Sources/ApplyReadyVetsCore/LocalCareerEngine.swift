@@ -48,9 +48,12 @@ public enum LocalCareerEngine {
     ]
 
     public static func analyze(_ request: TailorRequest) -> TailorResponse {
-        let resumeEvidence = buildResumeEvidence(request.resumeText)
-        let profileEvidence = buildProfileEvidence(request.profile)
-        let evidence = resumeEvidence + profileEvidence
+        let evidence = canonicalEvidence(
+            resumeText: request.resumeText,
+            profile: request.profile
+        )
+        let resumeEvidence = evidence.filter { $0.source == "resume" }
+        let profileEvidence = evidence.filter { $0.source == "veteran_input" }
         // Scan the complete resume, not the bounded evidence ledger. This keeps
         // a sensitive value near the end of a large but valid resume visible.
         let safetyFindings = SensitiveContentPolicy.findings(in: request.resumeText)
@@ -117,6 +120,55 @@ public enum LocalCareerEngine {
                 safetyFindings: safetyFindings
             )
         )
+    }
+
+    /// Rebuilds the evidence ledger from the supplied inputs. Export uses this
+    /// instead of trusting a persisted or service-supplied response ledger.
+    public static func canonicalEvidence(
+        resumeText: String,
+        profile: CandidateProfile
+    ) -> [EvidenceItem] {
+        buildResumeEvidence(resumeText) + buildProfileEvidence(profile)
+    }
+
+    /// A local-rule provenance label is not enough to bypass Truth Lock. Only
+    /// the exact, allowlisted military-code or acronym transforms emitted by
+    /// this engine are treated as supported terminology expansions.
+    static func isExactLocalRuleProposal(
+        _ proposal: ProposedEdit,
+        citedEvidence: [EvidenceItem],
+        allEvidence: [EvidenceItem]
+    ) -> Bool {
+        guard proposal.source == "private-local-rules",
+              proposal.evidenceIDs.count == 1,
+              citedEvidence.count == 1,
+              let cited = citedEvidence.first else {
+            return false
+        }
+
+        switch cited.source {
+        case "resume":
+            guard normalizedEvidenceText(proposal.originalText) == normalizedEvidenceText(cited.text),
+                  let expected = localRuleReplacement(for: cited.text) else {
+                return false
+            }
+            return normalizedEvidenceText(proposal.effectiveText) == normalizedEvidenceText(expected)
+        case "veteran_input":
+            guard isProfileInsertionAnchor(proposal.originalText),
+                  allEvidence.contains(where: {
+                      guard $0.source == "resume" else { return false }
+                      let anchor = normalizedEvidenceText(proposal.originalText)
+                      return normalizedEvidenceText($0.text) == anchor ||
+                          normalizedEvidenceText($0.section) == anchor
+                  }),
+                  let translation = militaryTranslation(in: cited.text) else {
+                return false
+            }
+            let expected = "\(proposal.originalText)\n\(translation)"
+            return normalizedEvidenceText(proposal.effectiveText) == normalizedEvidenceText(expected)
+        default:
+            return false
+        }
     }
 
     /// Returns the same conservative federal-posting classification used by
@@ -293,10 +345,7 @@ public enum LocalCareerEngine {
             )
         }
         let keywords = rankedKeywords(keywordLines.joined(separator: "\n"), limit: 30)
-        let resumeTokens = Set(cleanTokens(
-            linesEligibleForSkillSuggestions(normalizedLines(resumeText))
-                .joined(separator: "\n")
-        ))
+        let resumeTokens = Set(affirmedTokens(resumeText))
         let missing = Array(keywords.filter { !resumeTokens.contains($0) }.prefix(12))
         let lower = jobText.lowercased()
 
@@ -422,7 +471,7 @@ public enum LocalCareerEngine {
         evidence: [EvidenceItem],
         safetyFindings: [SafetyFinding]
     ) -> ReadinessScores {
-        let resumeTokens = Set(cleanTokens(resumeText))
+        let resumeTokens = Set(affirmedTokens(resumeText))
         let jobTokens = Set(job.keywords)
         let coverage = Int((100.0 * Double(resumeTokens.intersection(jobTokens).count)
             / Double(max(1, jobTokens.count))).rounded())
@@ -452,7 +501,7 @@ public enum LocalCareerEngine {
             evidenceStrength: evidenceStrength,
             acronymClarity: acronymClarity,
             applicationReadiness: 0,
-            disclaimer: "These are document checks based on your supplied materials. They are not a hiring prediction, and no overall readiness score is calculated."
+            disclaimer: "These document checks show job-keyword overlap, evidence strength, and acronym clarity. They cannot verify qualifications, simulate an ATS, or predict hiring; no overall readiness score is calculated."
         )
     }
 
@@ -472,6 +521,12 @@ public enum LocalCareerEngine {
         }
     }
 
+    private static func affirmedTokens(_ text: String) -> [String] {
+        normalizedLines(text)
+            .filter { !isUnassertedSkillLine($0) }
+            .flatMap(cleanTokens)
+    }
+
     private static func linesEligibleForSkillSuggestions(_ lines: [String]) -> [String] {
         var inSkillsSection = false
         return lines.compactMap { line in
@@ -483,11 +538,7 @@ public enum LocalCareerEngine {
                     .contains(normalized)
                 return nil
             }
-            if containsRegex(
-                line,
-                pattern: #"\b(?:no|not|never|without|lack(?:ing|s)?|unfamiliar)\b.{0,40}\b(?:experience|skill|knowledge|proficiency|with|in)?\b"#,
-                caseInsensitive: true
-            ) {
+            if isUnassertedSkillLine(line) {
                 return nil
             }
             let tokens = Set(cleanTokens(line))
@@ -500,6 +551,68 @@ public enum LocalCareerEngine {
             .replacingOccurrences(of: #"[^a-z ]"#, with: "", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
         return headings.contains(normalized)
+    }
+
+    private static func isUnassertedSkillLine(_ line: String) -> Bool {
+        let patterns = [
+            #"\b(?:no|not|never|without|lack(?:ed|ing|s)?|cannot|can't|couldn't|didn't|doesn't|don't|wasn't|weren't|unfamiliar)\b"#,
+            #"\b(?:basic|beginner|elementary|foundational|fundamentals|introductory|limited|familiarity|exposure)\b"#,
+            #"\b(?:training|coursework|course|studied|learning)\b"#,
+        ]
+        return patterns.contains {
+            containsRegex(line, pattern: $0, caseInsensitive: true)
+        }
+    }
+
+    private static func localRuleReplacement(for text: String) -> String? {
+        if let (code, translation) = militaryTranslations.first(where: { code, _ in
+            containsRegex(
+                text,
+                pattern: #"(?<!\w)\#(NSRegularExpression.escapedPattern(for: code))(?!\w)"#,
+                caseInsensitive: true
+            )
+        }) {
+            return replaceFirst(
+                in: text,
+                pattern: #"(?<!\w)\#(NSRegularExpression.escapedPattern(for: code))(?!\w)"#,
+                with: translation,
+                caseInsensitive: true
+            )
+        }
+        if let (acronym, expansion) = acronyms.first(where: { acronym, expansion in
+            !text.contains(expansion) && containsRegex(
+                text,
+                pattern: #"(?<!\w)\#(NSRegularExpression.escapedPattern(for: acronym))(?!\w)"#
+            )
+        }) {
+            return replaceFirst(
+                in: text,
+                pattern: #"(?<!\w)\#(NSRegularExpression.escapedPattern(for: acronym))(?!\w)"#,
+                with: expansion
+            )
+        }
+        return nil
+    }
+
+    private static func militaryTranslation(in text: String) -> String? {
+        militaryTranslations.first { code, _ in
+            containsRegex(
+                text,
+                pattern: #"(?<!\w)\#(NSRegularExpression.escapedPattern(for: code))(?!\w)"#,
+                caseInsensitive: true
+            )
+        }?.1
+    }
+
+    private static func normalizedEvidenceText(_ text: String) -> String {
+        text
+            .split(whereSeparator: \.isWhitespace)
+            .joined(separator: " ")
+            .lowercased()
+    }
+
+    private static func isProfileInsertionAnchor(_ text: String) -> Bool {
+        ["experience", "military experience"].contains(normalizedEvidenceText(text))
     }
 
     private static func rankedKeywords(_ text: String, limit: Int) -> [String] {

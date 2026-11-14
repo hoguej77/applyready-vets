@@ -13,6 +13,11 @@ from app.providers.apple_foundation_models import AppleFoundationModelProvider
 
 
 class AppleFoundationModelsTests(unittest.TestCase):
+    def setUp(self) -> None:
+        # app.main can initialize a tailoring service during test collection,
+        # which otherwise leaves the platform-availability result cached.
+        AppleFoundationModelProvider.is_available.cache_clear()
+
     def tearDown(self) -> None:
         AppleFoundationModelProvider.is_available.cache_clear()
 

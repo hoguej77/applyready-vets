@@ -7,7 +7,7 @@ import zipfile
 from pydantic import ValidationError
 
 from app.config import Settings
-from app.core.evidence import build_evidence_ledger
+from app.core.evidence import build_evidence_ledger, build_profile_evidence
 from app.core.job import analyze_job
 from app.core.safety import redact_for_ai, scan_resume_safety, validate_proposal
 from app.core.veteran import deterministic_veteran_proposals
@@ -159,6 +159,78 @@ class CoreTests(unittest.TestCase):
         self.assertFalse(ok)
         self.assertIn("target job title", reason)
 
+    def test_truth_lock_rejects_uncited_qualitative_claims(self):
+        ledger = build_evidence_ledger("Managed logistics operations.")
+        proposal = ProposedEdit(
+            id="uncited-vendor-claim",
+            section="experience",
+            original_text=ledger[0].text,
+            proposed_text="Managed logistics operations and built vendor relationships.",
+            rationale="Add context",
+            evidence_ids=[ledger[0].id],
+            confidence=0.9,
+            source="openai",
+        )
+
+        ok, reason = validate_proposal(proposal, ledger)
+
+        self.assertFalse(ok)
+        self.assertIn("candidate-specific wording", reason)
+
+    def test_truth_lock_rejects_claim_escalation_and_novel_short_technical_terms(self):
+        ledger = build_evidence_ledger("Coordinated schedules.\nManaged systems.")
+        escalation = ProposedEdit(
+            id="claim-escalation",
+            section="experience",
+            original_text=ledger[0].text,
+            proposed_text="Led schedules.",
+            rationale="Stronger verb",
+            evidence_ids=[ledger[0].id],
+            confidence=0.9,
+        )
+        ok, reason = validate_proposal(escalation, ledger)
+        self.assertFalse(ok)
+        self.assertIn("led", reason)
+
+        for term in ("C++", "C#", "AI", "R"):
+            with self.subTest(term=term):
+                proposal = ProposedEdit(
+                    id=f"novel-skill-{term}",
+                    section="experience",
+                    original_text=ledger[1].text,
+                    proposed_text=f"Managed systems with {term}.",
+                    rationale="Add skill",
+                    evidence_ids=[ledger[1].id],
+                    confidence=0.9,
+                )
+                ok, reason = validate_proposal(proposal, ledger)
+                self.assertFalse(ok)
+                self.assertIn("candidate-specific wording", reason)
+
+    def test_truth_lock_rejects_profile_translation_at_an_arbitrary_resume_anchor(self):
+        resume_ledger = build_evidence_ledger("Managed logistics operations.")
+        profile = CandidateProfile(
+            military_service=[MilitaryService(branch="Army", occupation_code="88M")]
+        )
+        profile_ledger = build_profile_evidence(profile)
+        proposal = ProposedEdit(
+            id="forged-profile-insertion",
+            section="experience",
+            original_text=resume_ledger[0].text,
+            proposed_text=(
+                "Managed logistics operations.\n"
+                "Motor Transport Operator (88M) — transportation and logistics operations"
+            ),
+            rationale="Forged placement",
+            evidence_ids=[profile_ledger[0].id],
+            confidence=0.9,
+            source="deterministic",
+        )
+
+        ok, _reason = validate_proposal(proposal, resume_ledger + profile_ledger)
+
+        self.assertFalse(ok)
+
     def test_truth_lock_preserves_negation_and_does_not_match_negated_skill(self):
         resume = "Did not manage AWS operations."
         job = "Title: Cloud Operator\nRequired: AWS operations."
@@ -223,8 +295,10 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(response.engine, "deterministic")
         self.assertTrue(response.evidence)
         self.assertTrue(response.job.open_to_veterans)
-        self.assertGreaterEqual(response.scores.application_readiness, 0)
-        self.assertNotIn("hire", response.scores.disclaimer.lower())
+        self.assertEqual(response.scores.application_readiness, 0)
+        self.assertIn("job-keyword overlap", response.scores.disclaimer.lower())
+        self.assertIn("cannot verify qualifications", response.scores.disclaimer.lower())
+        self.assertIn("ATS", response.scores.disclaimer)
 
     def test_service_falls_back_when_ai_is_unconfigured(self):
         response = TailoringService(self.settings()).analyze(
@@ -436,12 +510,43 @@ class CoreTests(unittest.TestCase):
     def test_document_extraction_handles_visible_html(self):
         result = extract_document(
             "job.html",
-            b"<h1>Manager</h1><script>alert(1)</script><p>Veterans welcome</p>",
+            (
+                b"<head>metadata-only keyword</head><h1>Manager</h1>"
+                b"<script>alert(1)</script><iframe>hidden posting</iframe>"
+                b"<svg>decorative keyword</svg><template>template keyword</template>"
+                b"<p>Veterans welcome</p>"
+            ),
             10_000,
         )
         self.assertIn("Manager", result.text)
         self.assertIn("Veterans welcome", result.text)
         self.assertNotIn("alert", result.text)
+        self.assertNotIn("metadata-only", result.text)
+        self.assertNotIn("hidden posting", result.text)
+        self.assertNotIn("decorative keyword", result.text)
+        self.assertNotIn("template keyword", result.text)
+
+    def test_document_extraction_rejects_blank_or_malformed_files(self):
+        for filename, data in (
+            ("blank.txt", b" \n\t "),
+            ("blank.html", b"<head>metadata only</head><script>ignore()</script>"),
+        ):
+            with self.subTest(filename=filename):
+                with self.assertRaisesRegex(ValueError, "did not contain readable text"):
+                    extract_document(filename, data, 10_000)
+
+        from pypdf import PdfWriter
+
+        blank_pdf = io.BytesIO()
+        writer = PdfWriter()
+        writer.add_blank_page(width=72, height=72)
+        writer.write(blank_pdf)
+        with self.assertRaisesRegex(ValueError, "did not contain readable text"):
+            extract_document("blank.pdf", blank_pdf.getvalue(), 10_000)
+        with self.assertRaisesRegex(ValueError, "DOCX file could not be read"):
+            extract_document("broken.docx", b"not a DOCX", 10_000)
+        with self.assertRaisesRegex(ValueError, "PDF could not be read"):
+            extract_document("broken.pdf", b"not a PDF", 10_000)
 
     def test_url_extraction_blocks_local_network(self):
         with self.assertRaisesRegex(ValueError, "globally routable"):

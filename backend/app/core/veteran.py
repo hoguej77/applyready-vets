@@ -32,23 +32,74 @@ ACRONYMS = {
 }
 
 
+def local_rule_replacement(text: str) -> str | None:
+    """Return one exact, allowlisted local terminology expansion, if any.
+
+    This is deliberately narrower than a general rewrite.  It lets Truth Lock
+    distinguish a known local military-term expansion from a client-labelled
+    proposal that merely claims to be deterministic.
+    """
+    for code, translation in MILITARY_TRANSLATIONS.items():
+        if re.search(rf"(?<!\w){re.escape(code)}(?!\w)", text, re.I):
+            return re.sub(
+                rf"(?<!\w){re.escape(code)}(?!\w)",
+                translation,
+                text,
+                count=1,
+                flags=re.I,
+            )
+    for acronym, expansion in ACRONYMS.items():
+        if re.search(rf"(?<!\w){re.escape(acronym)}(?!\w)", text) and expansion not in text:
+            return re.sub(
+                rf"(?<!\w){re.escape(acronym)}(?!\w)",
+                expansion,
+                text,
+                count=1,
+            )
+    return None
+
+
+def is_known_local_rule_proposal(proposal: ProposedEdit, cited_item: EvidenceItem) -> bool:
+    """Accept only the exact deterministic transformations this module emits.
+
+    `source` arrives from a client on export, so it is never trusted by itself.
+    The proposal must reproduce an allowlisted replacement from its one cited
+    evidence item.
+    """
+    if proposal.source != "deterministic":
+        return False
+
+    if cited_item.source == "resume":
+        replacement = local_rule_replacement(cited_item.text)
+        return (
+            replacement is not None
+            and _normalized_phrase(proposal.original_text) == _normalized_phrase(cited_item.text)
+            and _normalized_phrase(proposal.proposed_text) == _normalized_phrase(replacement)
+        )
+
+    if cited_item.source == "veteran_input":
+        if not _is_profile_insertion_anchor(proposal.original_text):
+            return False
+        for code, translation in MILITARY_TRANSLATIONS.items():
+            if re.search(rf"(?<!\w){re.escape(code)}(?!\w)", cited_item.text, re.I):
+                expected = f"{proposal.original_text}\n{translation}"
+                return _normalized_phrase(proposal.proposed_text) == _normalized_phrase(expected)
+    return False
+
+
 def deterministic_veteran_proposals(ledger: list[EvidenceItem], limit: int = 8) -> list[ProposedEdit]:
     proposals: list[ProposedEdit] = []
     for item in ledger:
-        replacement = item.text
-        reason = ""
-        for code, translation in MILITARY_TRANSLATIONS.items():
-            if re.search(rf"(?<!\w){re.escape(code)}(?!\w)", replacement, re.I):
-                replacement = re.sub(rf"(?<!\w){re.escape(code)}(?!\w)", translation, replacement, count=1, flags=re.I)
-                reason = "Translate the military occupation into plain civilian language while preserving the code."
-                break
-        if replacement == item.text:
-            for acronym, expansion in ACRONYMS.items():
-                if re.search(rf"(?<!\w){re.escape(acronym)}(?!\w)", replacement) and expansion not in replacement:
-                    replacement = re.sub(rf"(?<!\w){re.escape(acronym)}(?!\w)", expansion, replacement, count=1)
-                    reason = "Expand a military acronym once so a civilian recruiter does not have to interpret it."
-                    break
-        if replacement != item.text:
+        replacement = local_rule_replacement(item.text)
+        if replacement is not None:
+            reason = (
+                "Translate the military occupation into plain civilian language while preserving the code."
+                if any(
+                    re.search(rf"(?<!\w){re.escape(code)}(?!\w)", item.text, re.I)
+                    for code in MILITARY_TRANSLATIONS
+                )
+                else "Expand a military acronym once so a civilian recruiter does not have to interpret it."
+            )
             proposals.append(
                 ProposedEdit(
                     id=str(uuid.uuid4()),
@@ -64,6 +115,14 @@ def deterministic_veteran_proposals(ledger: list[EvidenceItem], limit: int = 8) 
         if len(proposals) >= limit:
             break
     return proposals
+
+
+def _normalized_phrase(text: str) -> str:
+    return re.sub(r"\s+", " ", text).strip().casefold()
+
+
+def _is_profile_insertion_anchor(text: str) -> bool:
+    return _normalized_phrase(text) in {"experience", "military experience"}
 
 
 def profile_veteran_proposals(

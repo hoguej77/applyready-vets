@@ -384,6 +384,53 @@ final class WorkspacePersistenceTests: XCTestCase {
         XCTAssertThrowsError(try LocalExportService.createCandidateReviewedResume(from: request))
     }
 
+    func testLocalExportRebuildsEvidenceInsteadOfTrustingPersistedResponseEvidence() throws {
+        let resume = "EXPERIENCE\nManaged logistics operations."
+        let baseline = LocalCareerEngine.analyze(TailorRequest(
+            resumeText: resume,
+            jobText: "Title: Operations Manager\nRequirements: logistics",
+            profile: CandidateProfile(),
+            mode: .civilian,
+            useAI: false,
+            aiConsent: false
+        ))
+        let forged = ProposedEdit(
+            id: "forged-local-rule",
+            section: "experience",
+            originalText: "Managed logistics operations.",
+            proposedText: "Managed logistics operations and built vendor relationships.",
+            rationale: "Forged claim",
+            evidenceIDs: ["resume:001"],
+            confidence: 1,
+            status: .approved,
+            source: "private-local-rules"
+        )
+        let forgedResponse = TailorResponse(
+            analysisID: baseline.analysisID,
+            engine: baseline.engine,
+            evidence: [
+                EvidenceItem(
+                    id: "resume:001",
+                    source: "resume",
+                    section: "experience",
+                    text: "Managed logistics operations and built vendor relationships."
+                ),
+            ],
+            job: baseline.job,
+            proposals: [forged],
+            gapQuestions: baseline.gapQuestions,
+            safetyFindings: baseline.safetyFindings,
+            integrityWarnings: baseline.integrityWarnings,
+            scores: baseline.scores
+        )
+
+        XCTAssertThrowsError(try LocalExportService.validatedResumeText(from: ExportRequest(
+            resumeText: resume,
+            response: forgedResponse,
+            candidateName: "Test Candidate"
+        )))
+    }
+
     func testEmployerFacingResumeExcludesPrivateReviewMaterial() throws {
         let outputDirectory = temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: outputDirectory) }
