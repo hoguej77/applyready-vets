@@ -83,6 +83,154 @@ final class HouseholdProfileTests: XCTestCase {
     }
 
     @MainActor
+    func testInvalidActiveProfileFailsClosedUntilJonathanOrDeniseIsExplicitlySelected() throws {
+        let directory = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        var model: AppModel? = makeModel(directory: directory, hasComplete: true)
+
+        XCTAssertTrue(model?.createHouseholdProfile(
+            preferredName: "Jonathan",
+            relationship: .veteran,
+            branch: "Army",
+            careerGoal: "Operations",
+            assistanceLevel: .privateCore
+        ) == true)
+        let jonathanID = try XCTUnwrap(model?.activeHouseholdProfileID)
+        model?.draft.resumeText = "Jonathan private resume evidence"
+        XCTAssertTrue(model?.upsertJobApplication(JobApplicationRecord(
+            employer: "Jonathan Employer",
+            roleTitle: "Operations Manager"
+        )) == true)
+        model?.saveForSceneTransition()
+
+        XCTAssertTrue(model?.createHouseholdProfile(
+            preferredName: "Denise",
+            relationship: .militarySpouse,
+            branch: "",
+            careerGoal: "Project management",
+            assistanceLevel: .privateCore
+        ) == true)
+        let deniseID = try XCTUnwrap(model?.activeHouseholdProfileID)
+        model?.draft.resumeText = "Denise private resume evidence"
+        XCTAssertTrue(model?.upsertJobApplication(JobApplicationRecord(
+            employer: "Denise Employer",
+            roleTitle: "Project Manager"
+        )) == true)
+        model?.saveForSceneTransition()
+
+        let store = ResilientWorkspaceStore(directory: directory)
+        var malformedState = try XCTUnwrap(store.load()).state
+        malformedState.activeHouseholdProfileID = UUID()
+        try store.save(malformedState)
+        model = nil
+
+        let restored = makeModel(directory: directory, hasComplete: true)
+        XCTAssertNil(restored.activeHouseholdProfileID)
+        XCTAssertTrue(restored.requiresHouseholdProfileSelection)
+        XCTAssertTrue(restored.jobApplications.isEmpty)
+        XCTAssertTrue(restored.draft.resumeText.isEmpty)
+        XCTAssertEqual(
+            restored.errorMessage,
+            "Your saved active profile could not be verified. Choose a local profile before reopening career work."
+        )
+        restored.loadDemo()
+        XCTAssertNil(restored.activeHouseholdProfileID)
+        XCTAssertEqual(Set(restored.householdProfiles.map(\.id)), Set([jonathanID, deniseID]))
+        XCTAssertTrue(restored.draft.resumeText.isEmpty)
+
+        restored.switchHouseholdProfile(to: deniseID)
+        XCTAssertEqual(restored.activePreferredName, "Denise")
+        XCTAssertEqual(restored.draft.resumeText, "Denise private resume evidence")
+        XCTAssertEqual(restored.jobApplications.map(\.employer), ["Denise Employer"])
+
+        restored.switchHouseholdProfile(to: jonathanID)
+        XCTAssertEqual(restored.activePreferredName, "Jonathan")
+        XCTAssertEqual(restored.draft.resumeText, "Jonathan private resume evidence")
+        XCTAssertEqual(restored.jobApplications.map(\.employer), ["Jonathan Employer"])
+    }
+
+    @MainActor
+    func testRestoreUsesActiveProfileSnapshotInsteadOfRedundantRootDraft() throws {
+        let directory = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        var model: AppModel? = makeModel(directory: directory, hasComplete: true)
+
+        XCTAssertTrue(model?.createHouseholdProfile(
+            preferredName: "Jonathan",
+            relationship: .veteran,
+            branch: "Army",
+            careerGoal: "Operations",
+            assistanceLevel: .privateCore
+        ) == true)
+        let jonathanID = try XCTUnwrap(model?.activeHouseholdProfileID)
+        model?.draft.resumeText = "Jonathan private resume evidence"
+        XCTAssertTrue(model?.upsertJobApplication(JobApplicationRecord(
+            employer: "Jonathan Employer",
+            roleTitle: "Operations Manager"
+        )) == true)
+        model?.saveForSceneTransition()
+
+        XCTAssertTrue(model?.createHouseholdProfile(
+            preferredName: "Denise",
+            relationship: .militarySpouse,
+            branch: "",
+            careerGoal: "Project management",
+            assistanceLevel: .privateCore
+        ) == true)
+        model?.draft.resumeText = "Denise private resume evidence"
+        XCTAssertTrue(model?.upsertJobApplication(JobApplicationRecord(
+            employer: "Denise Employer",
+            roleTitle: "Project Manager"
+        )) == true)
+        model?.saveForSceneTransition()
+
+        let store = ResilientWorkspaceStore(directory: directory)
+        var state = try XCTUnwrap(store.load()).state
+        state.activeHouseholdProfileID = jonathanID
+        state.draft.resumeText = "Denise root draft that must not open for Jonathan"
+        try store.save(state)
+        model = nil
+
+        let restored = makeModel(directory: directory, hasComplete: true)
+        XCTAssertEqual(restored.activeHouseholdProfileID, jonathanID)
+        XCTAssertEqual(restored.draft.resumeText, "Jonathan private resume evidence")
+        XCTAssertEqual(restored.jobApplications.map(\.employer), ["Jonathan Employer"])
+    }
+
+    @MainActor
+    func testMismatchedSnapshotOwnerFailsClosed() throws {
+        let directory = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        var model: AppModel? = makeModel(directory: directory, hasComplete: true)
+
+        XCTAssertTrue(model?.createHouseholdProfile(
+            preferredName: "Jonathan",
+            relationship: .veteran,
+            branch: "Army",
+            careerGoal: "Operations",
+            assistanceLevel: .privateCore
+        ) == true)
+        let jonathanID = try XCTUnwrap(model?.activeHouseholdProfileID)
+        model?.draft.resumeText = "Jonathan private resume evidence"
+        model?.saveForSceneTransition()
+
+        let store = ResilientWorkspaceStore(directory: directory)
+        var state = try XCTUnwrap(store.load()).state
+        var snapshots = try XCTUnwrap(state.householdWorkspaces)
+        var snapshot = try XCTUnwrap(snapshots[jonathanID.uuidString])
+        snapshot.ownerProfileID = UUID()
+        snapshots[jonathanID.uuidString] = snapshot
+        state.householdWorkspaces = snapshots
+        try store.save(state)
+        model = nil
+
+        let restored = makeModel(directory: directory, hasComplete: true)
+        XCTAssertNil(restored.activeHouseholdProfileID)
+        XCTAssertTrue(restored.requiresHouseholdProfileSelection)
+        XCTAssertTrue(restored.draft.resumeText.isEmpty)
+    }
+
+    @MainActor
     func testPrivateCoreDisablesGenerativeAndExternalServiceUse() {
         let directory = temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }

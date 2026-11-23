@@ -116,6 +116,9 @@ struct HouseholdProfile: Codable, Hashable, Identifiable {
 }
 
 struct HouseholdWorkspaceSnapshot: Codable {
+    /// Binds a persisted snapshot to its local profile. Optional preserves
+    /// readability of snapshots written before this field existed.
+    var ownerProfileID: UUID?
     var stepRawValue: Int
     var draft: WorkspaceDraft
     var response: TailorResponse?

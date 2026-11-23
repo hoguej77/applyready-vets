@@ -21,6 +21,8 @@ struct RootView: View {
                 protectedCleanupView
             } else if !entitlements.hasResolvedInitialEntitlement {
                 initialAccessCheckView
+            } else if model.requiresHouseholdProfileSelection {
+                HouseholdProfileRecoveryView()
             } else if model.hasStarted && model.hasActiveHouseholdProfile {
                 MainAppView()
             } else {
@@ -157,5 +159,45 @@ struct RootView: View {
         }
         model.handlePendingShortcut()
         model.handleIncomingShare()
+    }
+}
+
+private struct HouseholdProfileRecoveryView: View {
+    @EnvironmentObject private var model: AppModel
+
+    var body: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "person.crop.circle.badge.exclamationmark")
+                .font(.system(size: 42))
+                .foregroundStyle(Brand.navyLight)
+            Text("Choose a private workspace")
+                .font(.title2.weight(.bold))
+                .foregroundStyle(Brand.ink)
+            Text("Your saved workspace needs you to choose the person whose local career work you want to open.")
+                .font(.body)
+                .foregroundStyle(Brand.secondaryText)
+                .multilineTextAlignment(.center)
+            VStack(spacing: 10) {
+                ForEach(model.householdProfiles) { profile in
+                    Button {
+                        model.switchHouseholdProfile(to: profile.id)
+                    } label: {
+                        HStack {
+                            Label(profile.displayName, systemImage: "person.crop.circle")
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                        }
+                        .font(.headline)
+                        .frame(maxWidth: .infinity, minHeight: 48)
+                    }
+                    .buttonStyle(.bordered)
+                }
+            }
+        }
+        .padding(28)
+        .frame(maxWidth: 520)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(BrandBackground())
+        .accessibilityElement(children: .contain)
     }
 }

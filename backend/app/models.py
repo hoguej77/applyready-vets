@@ -100,7 +100,10 @@ class ReadinessScores(BaseModel):
     evidence_strength: int = Field(ge=0, le=100)
     acronym_clarity: int = Field(ge=0, le=100)
     application_readiness: int = Field(ge=0, le=100)
-    disclaimer: str = "Readiness checks are guidance, not an ATS simulation or hiring prediction."
+    disclaimer: str = (
+        "Document checks show job-keyword overlap, evidence strength, and acronym clarity. "
+        "They cannot verify qualifications, simulate an ATS, or predict hiring."
+    )
 
 
 class TailorRequest(BaseModel):

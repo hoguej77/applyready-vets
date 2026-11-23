@@ -4,6 +4,7 @@ import re
 
 from app.core.evidence import evidence_map
 from app.core.text import missing_claim_qualifier, numbers
+from app.core.veteran import is_known_local_rule_proposal
 from app.models import EvidenceItem, ProposedEdit, SafetyFinding, Severity
 
 
@@ -81,6 +82,42 @@ HIGH_RISK_CLAIM_GROUPS: list[tuple[str, re.Pattern[str]]] = [
         re.compile(r"\b(?:exceptional|award-winning|top-performing|highly skilled)\b", re.I),
     ),
     ("advanced proficiency", re.compile(r"\b(?:advanced proficiency|extensive experience)\b", re.I)),
+]
+
+CLAIM_FUNCTION_WORDS = {
+    "a", "an", "the", "and", "or", "but", "for", "with", "from", "into",
+    "through", "across", "while", "that", "this", "these", "those", "using", "via",
+    "within", "over", "under", "to", "of", "in", "on", "at", "by", "as", "per",
+    "than", "be", "am", "is", "are", "was", "were", "been", "being", "do", "does",
+    "did", "have", "has", "had", "will", "would", "can", "could", "may", "might",
+    "must", "should", "not", "no", "never", "without", "only", "also", "i", "me",
+    "my", "mine", "we", "us", "our", "ours", "you", "your", "yours", "he", "him",
+    "his", "she", "her", "hers", "they", "them", "their", "theirs", "it", "its", "who",
+    "which", "where", "when", "why", "how", "what", "up", "down", "out", "off",
+}
+
+CLAIM_EQUIVALENCE_GROUPS = [
+    {"lead", "leads", "led", "leading"},
+    {"manage", "manages", "managed", "managing"},
+    {"supervise", "supervises", "supervised", "supervising"},
+    {"direct", "directs", "directed", "directing"},
+    {"coordinate", "coordinates", "coordinated", "coordinating"},
+    {"improve", "improves", "improved", "improving"},
+    {"increase", "increases", "increased", "increasing"},
+    {"enhance", "enhances", "enhanced", "enhancing"},
+    {"optimize", "optimizes", "optimized", "optimizing"},
+    {"build", "builds", "built", "building"},
+    {"develop", "develops", "developed", "developing"},
+    {"create", "creates", "created", "creating"},
+    {"maintain", "maintains", "maintained", "maintaining"},
+    {"sustain", "sustains", "sustained", "sustaining"},
+    {"train", "trains", "trained", "training"},
+    {"teach", "teaches", "taught", "teaching"},
+    {"instruct", "instructs", "instructed", "instructing"},
+    {"plan", "plans", "planned", "planning"},
+    {"schedule", "schedules", "scheduled", "scheduling"},
+    {"analyze", "analyzes", "analyzed", "analyzing"},
+    {"assess", "assesses", "assessed", "assessing"},
 ]
 
 
@@ -183,6 +220,18 @@ def validate_proposal(
     cited_text = " ".join(lookup[item_id].text for item_id in proposal.evidence_ids)
     cited_items = [lookup[item_id] for item_id in proposal.evidence_ids]
     cited_resume_lines = [item.text for item in cited_items if item.source == "resume"]
+    known_local_rule = (
+        len(cited_items) == 1 and is_known_local_rule_proposal(proposal, cited_items[0])
+    )
+    if known_local_rule and cited_items[0].source == "veteran_input":
+        known_local_rule = any(
+            item.source == "resume"
+            and (
+                _normalized_phrase(item.text) == _normalized_phrase(proposal.original_text)
+                or _normalized_phrase(item.section) == _normalized_phrase(proposal.original_text)
+            )
+            for item in ledger
+        )
     if cited_resume_lines:
         if len(cited_items) != 1:
             return False, "A resume rewrite must cite exactly one source line and may not recombine claims."
@@ -212,6 +261,17 @@ def validate_proposal(
         if pattern.search(proposal.proposed_text) and not pattern.search(cited_text):
             return False, f"Unsupported high-risk qualitative claim: {label}."
 
+    if not known_local_rule:
+        unsupported_claim = _first_unsupported_claim_token(
+            proposal.proposed_text,
+            cited_text,
+        )
+        if unsupported_claim:
+            return False, (
+                "Unsupported candidate-specific wording not found in the cited evidence: "
+                f"{unsupported_claim}."
+            )
+
     for code, _title, pattern in SENSITIVE_PATTERNS:
         if pattern.search(proposal.proposed_text):
             return False, f"Proposal contains sensitive information ({code})."
@@ -220,3 +280,21 @@ def validate_proposal(
 
 def _normalized_phrase(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip().casefold()
+
+
+def _first_unsupported_claim_token(proposed_text: str, cited_text: str) -> str | None:
+    source_words = _claim_words(cited_text)
+    allowed = set(source_words)
+    for group in CLAIM_EQUIVALENCE_GROUPS:
+        if source_words & group:
+            allowed.update(group)
+    unsupported = _claim_words(proposed_text) - allowed
+    return min(unsupported) if unsupported else None
+
+
+def _claim_words(text: str) -> set[str]:
+    words = {
+        token.strip("'/-").casefold()
+        for token in re.findall(r"[A-Za-z][+#]+|[A-Za-z](?:[A-Za-z0-9'/-]*[A-Za-z0-9])?", text)
+    }
+    return {word for word in words if word and word not in CLAIM_FUNCTION_WORDS}

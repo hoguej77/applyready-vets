@@ -16,7 +16,7 @@ def readiness_scores(
     resume_text: str,
     job: JobAnalysis,
     ledger: list[EvidenceItem],
-    safety_findings: list[SafetyFinding],
+    _safety_findings: list[SafetyFinding],
 ) -> ReadinessScores:
     resume_tokens = set(affirmed_tokens(resume_text))
     job_tokens = set(job.keywords)
@@ -33,11 +33,15 @@ def readiness_scores(
     explained = sum(1 for acronym in all_caps if re.search(rf"[A-Za-z ]+\({re.escape(acronym)}\)", resume_text))
     acronym_clarity = 100 if not all_caps else round(100 * explained / len(all_caps))
 
-    penalty = min(40, len(safety_findings) * 10)
-    readiness = max(0, round((coverage + evidence_strength + acronym_clarity) / 3) - penalty)
     return ReadinessScores(
         qualification_coverage=coverage,
         evidence_strength=evidence_strength,
         acronym_clarity=acronym_clarity,
-        application_readiness=readiness,
+        # Do not combine document checks into a score that could be mistaken
+        # for a hiring prediction, qualification determination, or ATS result.
+        application_readiness=0,
+        disclaimer=(
+            "Document checks show job-keyword overlap, evidence strength, and acronym clarity. "
+            "They cannot verify qualifications, simulate an ATS, or predict hiring."
+        ),
     )

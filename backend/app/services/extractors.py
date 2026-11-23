@@ -15,6 +15,8 @@ from app.models import DocumentExtraction
 
 
 class _VisibleTextParser(HTMLParser):
+    _non_visible_tags = {"head", "iframe", "noscript", "object", "script", "style", "svg", "template"}
+
     def __init__(self):
         super().__init__(convert_charrefs=True)
         self.parts: list[str] = []
@@ -22,14 +24,14 @@ class _VisibleTextParser(HTMLParser):
 
     def handle_starttag(self, tag: str, attrs):
         tag = tag.lower()
-        if tag in {"script", "style", "noscript"}:
+        if tag in self._non_visible_tags:
             self.hidden += 1
         elif tag in {"p", "br", "div", "li", "h1", "h2", "h3", "tr"}:
             self.parts.append("\n")
 
     def handle_endtag(self, tag: str):
         tag = tag.lower()
-        if tag in {"script", "style", "noscript"} and self.hidden:
+        if tag in self._non_visible_tags and self.hidden:
             self.hidden -= 1
         elif tag in {"p", "div", "li", "h1", "h2", "h3", "tr"}:
             self.parts.append("\n")
@@ -42,6 +44,7 @@ class _VisibleTextParser(HTMLParser):
 def html_to_text(source: str) -> str:
     parser = _VisibleTextParser()
     parser.feed(source)
+    parser.close()
     text = "".join(parser.parts)
     return "\n".join(
         line for line in (re.sub(r"\s+", " ", raw).strip() for raw in text.splitlines()) if line
@@ -69,25 +72,38 @@ def extract_document(filename: str, data: bytes, max_bytes: int) -> DocumentExtr
             from docx import Document
         except ImportError as exc:
             raise ValueError("DOCX support is not installed on the server") from exc
-        doc = Document(io.BytesIO(data))
-        parts = [paragraph.text for paragraph in doc.paragraphs if paragraph.text.strip()]
-        for table in doc.tables:
-            for row in table.rows:
-                parts.extend(cell.text for cell in row.cells if cell.text.strip())
-        text = "\n".join(parts)
+        try:
+            doc = Document(io.BytesIO(data))
+            parts = [paragraph.text for paragraph in doc.paragraphs if paragraph.text.strip()]
+            for table in doc.tables:
+                for row in table.rows:
+                    parts.extend(cell.text for cell in row.cells if cell.text.strip())
+            text = "\n".join(parts)
+        except Exception as exc:
+            raise ValueError(
+                "The DOCX file could not be read. Export it again or upload TXT, PDF, or RTF."
+            ) from exc
     elif suffix == ".pdf":
         try:
             from pypdf import PdfReader
         except ImportError as exc:
             raise ValueError("PDF support is not installed on the server") from exc
-        reader = PdfReader(io.BytesIO(data))
-        text = "\n".join(page.extract_text() or "" for page in reader.pages)
-        if not text.strip():
-            warnings.append("No selectable PDF text was found; this document may require OCR.")
+        try:
+            reader = PdfReader(io.BytesIO(data))
+            text = "\n".join(page.extract_text() or "" for page in reader.pages)
+        except Exception as exc:
+            raise ValueError(
+                "The PDF could not be read. Export it again or upload a text-based PDF."
+            ) from exc
     else:
         raise ValueError("Supported files are TXT, MD, HTML, RTF, DOCX, and PDF")
 
-    return DocumentExtraction(filename=Path(filename).name, text=text.strip(), warnings=warnings)
+    text = text.strip()
+    if not text:
+        raise ValueError(
+            "The uploaded file did not contain readable text. Try a text-based file or OCR the document first."
+        )
+    return DocumentExtraction(filename=Path(filename).name, text=text, warnings=warnings)
 
 
 class _SafeRedirectHandler(urllib.request.HTTPRedirectHandler):
@@ -113,7 +129,10 @@ def extract_public_url(url: str, max_bytes: int = 2_000_000) -> DocumentExtracti
         raise ValueError(f"Unable to retrieve the job URL: {exc.reason}") from exc
     decoded = content.decode("utf-8", errors="replace")
     text = html_to_text(decoded) if content_type == "text/html" or "<html" in decoded[:1000].lower() else decoded
-    return DocumentExtraction(filename=urllib.parse.urlparse(url).netloc, text=html.unescape(text).strip())
+    text = html.unescape(text).strip()
+    if not text:
+        raise ValueError("The job URL did not contain readable text")
+    return DocumentExtraction(filename=urllib.parse.urlparse(url).netloc, text=text)
 
 
 def _validate_public_url(url: str) -> None:

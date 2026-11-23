@@ -106,7 +106,7 @@ struct AnalysisResultsSummary: View {
                 Spacer()
                 StatusPill(text: response.engine, systemImage: engineIcon)
             }
-            ReadinessGauge(title: "Qualification coverage", value: response.scores.qualificationCoverage)
+            ReadinessGauge(title: "Job-keyword overlap", value: response.scores.qualificationCoverage)
             ReadinessGauge(title: "Evidence strength", value: response.scores.evidenceStrength)
             ReadinessGauge(title: "Acronym clarity", value: response.scores.acronymClarity)
             Text(response.scores.disclaimer).font(.footnote).foregroundStyle(.secondary)

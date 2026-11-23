@@ -87,10 +87,11 @@ before submission.
 - Native iPhone/iPad Import → Profile → Analysis → Truth Lock → Export workflow.
 - Private `LocalCareerEngine` evidence ledger, job and keyword analysis, gap questions, safety review, veteran/federal
   signals, scam-risk patterns, explainable readiness estimates, and conservative military-language translations.
-- Readiness is shown as separate qualification-coverage, evidence-strength, and acronym-clarity sub-scores, not a
-  hiring probability or unexplained universal “ATS score.”
-- Truth Lock rejects missing citations, invented numbers, copied target titles, sensitive details, mismatched Apple
-  citations, and tampered user edits. User-edited wording is checked again immediately before export.
+- Readiness is shown as separate job-keyword-overlap, evidence-strength, and acronym-clarity document checks, not a
+  qualification decision, hiring probability, or unexplained universal “ATS score.”
+- Truth Lock rejects missing citations, invented numbers, copied target titles, unsupported candidate-specific
+  wording, sensitive details, and tampered user edits. A local-rule label alone cannot authorize an edit; user-edited
+  wording is checked again against rebuilt candidate evidence immediately before export.
 - Evidence-backed LinkedIn headlines, About copy, skills, highlights, networking messages, and checklist. The app does
   not log in, scrape, edit, or post to LinkedIn.
 - Recognizes and preserves links from Indeed, Workday, LinkedIn, USAJOBS, Handshake, JOFDAV, and employer sites. It

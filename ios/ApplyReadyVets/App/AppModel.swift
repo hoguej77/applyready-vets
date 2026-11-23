@@ -444,6 +444,12 @@ final class AppModel: ObservableObject {
         activeHouseholdProfile != nil
     }
 
+    /// A persisted workspace with people but no verified active person must
+    /// remain closed until someone explicitly selects a local profile.
+    var requiresHouseholdProfileSelection: Bool {
+        !householdProfiles.isEmpty && !hasActiveHouseholdProfile
+    }
+
     func start() {
         guard hasActiveHouseholdProfile else {
             statusMessage = "Create a private profile first so this workspace belongs to the right person."
@@ -520,6 +526,7 @@ final class AppModel: ObservableObject {
         refreshVisibleJobApplications()
         persistWorkspace()
         refreshApplicationSpotlightIndex()
+        errorMessage = nil
         statusMessage = "\(profile.displayName)’s private workspace is open."
     }
 
@@ -861,6 +868,10 @@ final class AppModel: ObservableObject {
     }
 
     func loadDemo() {
+        guard !requiresHouseholdProfileSelection else {
+            errorMessage = "Choose a saved local profile before opening demo data."
+            return
+        }
         deleteGeneratedFiles()
         if activeHouseholdProfileID == nil {
             let demoName = DemoData.draft.profile.fullName
@@ -1950,7 +1961,7 @@ final class AppModel: ObservableObject {
             try CareerInputPolicy.validate(draft)
             if let activeHouseholdProfileID {
                 householdWorkspaces[activeHouseholdProfileID] =
-                    currentHouseholdWorkspaceSnapshot()
+                    currentHouseholdWorkspaceSnapshot(for: activeHouseholdProfileID)
             }
             try workspaceStore.save(persistenceState())
             // Commit the authoritative root workspace first. If this second,
@@ -2025,13 +2036,39 @@ final class AppModel: ObservableObject {
             }
         )
         householdProfiles = state.householdProfiles ?? []
-        activeHouseholdProfileID = state.activeHouseholdProfileID
+        let validProfileIDs = Set(householdProfiles.map(\.id))
+        let restoredActiveProfileID = state.activeHouseholdProfileID
+        let hasValidActiveProfile = restoredActiveProfileID.map {
+            validProfileIDs.contains($0)
+        } ?? false
+        activeHouseholdProfileID = hasValidActiveProfile
+            ? restoredActiveProfileID
+            : nil
         householdWorkspaces = Dictionary(
             uniqueKeysWithValues: (state.householdWorkspaces ?? [:]).compactMap {
-                guard let id = UUID(uuidString: $0.key) else { return nil }
-                return (id, $0.value)
+                let snapshot = $0.value
+                guard let id = UUID(uuidString: $0.key),
+                      validProfileIDs.contains(id),
+                      snapshot.ownerProfileID == nil || snapshot.ownerProfileID == id else {
+                    return nil
+                }
+                return (id, snapshot)
             }
         )
+        if !householdProfiles.isEmpty {
+            guard hasValidActiveProfile,
+                  let activeProfileID = activeHouseholdProfileID,
+                  let snapshot = householdWorkspaces[activeProfileID] else {
+                // Do not restore whichever draft happened to be serialized at
+                // the root when its profile binding or keyed snapshot is
+                // missing. The person must explicitly select a survivor.
+                enterProfileSelectionRecovery()
+                return
+            }
+            hasStarted = true
+            restoreHouseholdWorkspace(snapshot)
+            return
+        }
         hasStarted = state.hasStarted
         draft = state.draft
         jobURL = state.draft.jobURL ?? ""
@@ -2057,9 +2094,12 @@ final class AppModel: ObservableObject {
         }
     }
 
-    private func currentHouseholdWorkspaceSnapshot() -> HouseholdWorkspaceSnapshot {
+    private func currentHouseholdWorkspaceSnapshot(
+        for ownerProfileID: UUID
+    ) -> HouseholdWorkspaceSnapshot {
         let activeResponse = currentResponse
         return HouseholdWorkspaceSnapshot(
+            ownerProfileID: ownerProfileID,
             stepRawValue: step.rawValue,
             draft: draft,
             response: activeResponse,
@@ -2111,6 +2151,20 @@ final class AppModel: ObservableObject {
         hasAcknowledgedImportWarnings = true
         selectedTrackedApplicationID = nil
         step = .importDocuments
+    }
+
+    private func enterProfileSelectionRecovery() {
+        activeHouseholdProfileID = nil
+        hasStarted = false
+        draft = WorkspaceDraft()
+        jobURL = ""
+        response = nil
+        linkedInKit = nil
+        analysisInputFingerprint = nil
+        importReviewWarnings = []
+        hasAcknowledgedImportWarnings = true
+        step = .importDocuments
+        errorMessage = "Your saved active profile could not be verified. Choose a local profile before reopening career work."
     }
 
     private func applyIdentity(
@@ -2175,7 +2229,7 @@ final class AppModel: ObservableObject {
         )
         householdProfiles = [profile]
         activeHouseholdProfileID = profile.id
-        householdWorkspaces[profile.id] = currentHouseholdWorkspaceSnapshot()
+        householdWorkspaces[profile.id] = currentHouseholdWorkspaceSnapshot(for: profile.id)
     }
 
     @discardableResult
@@ -2192,7 +2246,14 @@ final class AppModel: ObservableObject {
 
     private func refreshVisibleJobApplications() {
         guard let activeHouseholdProfileID else {
-            jobApplications = storedJobApplications
+            // Legacy workspaces can predate household profiles. Once profiles
+            // exist, however, an absent selection must never reveal every
+            // person's tracker records.
+            jobApplications = householdProfiles.isEmpty ? storedJobApplications : []
+            return
+        }
+        guard householdProfiles.contains(where: { $0.id == activeHouseholdProfileID }) else {
+            jobApplications = []
             return
         }
         jobApplications = storedJobApplications.filter {

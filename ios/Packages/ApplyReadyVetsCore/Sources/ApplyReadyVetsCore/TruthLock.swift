@@ -26,8 +26,20 @@ public enum TruthLock {
         guard proposal.evidenceIDs.allSatisfy({ lookup[$0] != nil }) else {
             return Result(accepted: false, reason: "A source citation is missing.")
         }
-        let source = proposal.evidenceIDs.compactMap { lookup[$0]?.text }.joined(separator: " ")
-        if proposal.source != "private-local-rules" {
+        let citedEvidence = proposal.evidenceIDs.compactMap { lookup[$0] }
+        let source = citedEvidence.map(\.text).joined(separator: " ")
+        let isExactLocalRule = LocalCareerEngine.isExactLocalRuleProposal(
+            proposal,
+            citedEvidence: citedEvidence,
+            allEvidence: evidence
+        )
+        if proposal.source == "private-local-rules", !isExactLocalRule {
+            return Result(
+                accepted: false,
+                reason: "The local-rule proposal is not an allowlisted evidence-backed terminology transform."
+            )
+        }
+        if !isExactLocalRule {
             guard proposal.evidenceIDs.count == 1,
                   normalizedPhrase(source) == normalizedPhrase(proposal.originalText) else {
                 return Result(
@@ -49,13 +61,10 @@ public enum TruthLock {
         guard unsupported.isEmpty else {
             return Result(accepted: false, reason: "The edit adds an unsupported number.")
         }
-        let vocabularyBasis = proposal.source == "private-local-rules"
-            ? source + " " + proposal.proposedText
-            : source
-        if !(proposal.source == "private-local-rules" && proposal.status != .edited),
+        if !isExactLocalRule,
            let claim = firstUnsupportedClaimToken(
                 in: proposal.effectiveText,
-                comparedWith: vocabularyBasis
+                comparedWith: source
            ) {
             return Result(
                 accepted: false,
@@ -114,13 +123,27 @@ public enum TruthLock {
         let sourceWords = claimWords(in: source)
         var allowed = sourceWords
         let equivalenceGroups: [Set<String>] = [
-            ["lead", "leads", "led", "leading", "manage", "manages", "managed", "managing", "supervise", "supervised", "direct", "directed", "coordinate", "coordinated"],
-            ["improve", "improved", "increase", "increased", "enhance", "enhanced", "optimize", "optimized"],
-            ["build", "built", "develop", "developed", "create", "created"],
-            ["maintain", "maintained", "sustain", "sustained"],
-            ["train", "trained", "teach", "taught", "instruct", "instructed"],
-            ["plan", "planned", "schedule", "scheduled"],
-            ["analyze", "analyzed", "assess", "assessed"],
+            ["lead", "leads", "led", "leading"],
+            ["manage", "manages", "managed", "managing"],
+            ["supervise", "supervises", "supervised", "supervising"],
+            ["direct", "directs", "directed", "directing"],
+            ["coordinate", "coordinates", "coordinated", "coordinating"],
+            ["improve", "improves", "improved", "improving"],
+            ["increase", "increases", "increased", "increasing"],
+            ["enhance", "enhances", "enhanced", "enhancing"],
+            ["optimize", "optimizes", "optimized", "optimizing"],
+            ["build", "builds", "built", "building"],
+            ["develop", "develops", "developed", "developing"],
+            ["create", "creates", "created", "creating"],
+            ["maintain", "maintains", "maintained", "maintaining"],
+            ["sustain", "sustains", "sustained", "sustaining"],
+            ["train", "trains", "trained", "training"],
+            ["teach", "teaches", "taught", "teaching"],
+            ["instruct", "instructs", "instructed", "instructing"],
+            ["plan", "plans", "planned", "planning"],
+            ["schedule", "schedules", "scheduled", "scheduling"],
+            ["analyze", "analyzes", "analyzed", "analyzing"],
+            ["assess", "assesses", "assessed", "assessing"],
         ]
         for group in equivalenceGroups where !sourceWords.isDisjoint(with: group) {
             allowed.formUnion(group)
@@ -133,12 +156,18 @@ public enum TruthLock {
 
     private static func claimWords(in text: String) -> Set<String> {
         let functionWords: Set<String> = [
-            "the", "and", "for", "with", "from", "into", "through", "across", "while",
-            "that", "this", "these", "those", "using", "via", "within", "over", "under",
-            "their", "his", "her", "its", "our", "your", "who", "which", "where",
+            "a", "an", "the", "and", "or", "but", "for", "with", "from", "into",
+            "through", "across", "while", "that", "this", "these", "those", "using", "via",
+            "within", "over", "under", "to", "of", "in", "on", "at", "by", "as", "per",
+            "than", "be", "am", "is", "are", "was", "were", "been", "being", "do", "does",
+            "did", "have", "has", "had", "will", "would", "can", "could", "may", "might",
+            "must", "should", "not", "no", "never", "without", "only", "also", "i", "me",
+            "my", "mine", "we", "us", "our", "ours", "you", "your", "yours", "he", "him",
+            "his", "she", "her", "hers", "they", "them", "their", "theirs", "it", "its", "who",
+            "which", "where", "when", "why", "how", "what", "up", "down", "out", "off",
         ]
         guard let expression = try? NSRegularExpression(
-            pattern: #"[A-Za-z][A-Za-z'/-]{1,}"#
+            pattern: #"[A-Za-z][+#]+|[A-Za-z](?:[A-Za-z0-9'/-]*[A-Za-z0-9])?"#
         ) else { return [] }
         let range = NSRange(text.startIndex..., in: text)
         return Set(expression.matches(in: text, range: range).compactMap { match in
@@ -146,7 +175,7 @@ public enum TruthLock {
             let word = text[swiftRange]
                 .trimmingCharacters(in: CharacterSet(charactersIn: "'/-"))
                 .lowercased()
-            return word.count > 2 && !functionWords.contains(word) ? word : nil
+            return !word.isEmpty && !functionWords.contains(word) ? word : nil
         })
     }
 

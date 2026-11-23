@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased — evidence and isolation hardening — 2026-11-14
+
+- Made the optional Python service match the native product policy: it now returns separate document checks only and
+  no composite application-readiness score. The keyword figure is explicitly described as job-keyword overlap, not a
+  qualification decision, ATS simulation, or hiring prediction.
+- Tightened both Truth Lock implementations so a source label cannot grant trust by itself. Backend proposals with
+  uncited candidate-specific wording are rejected; native local-rule wording must exactly match an allowlisted
+  military-code or acronym expansion at the supported resume heading. Claim checks preserve technical terms such as
+  C++, C#, AI, and R and do not treat distinct leadership verbs as interchangeable. Native export now rebuilds its
+  evidence ledger from the submitted resume and profile instead of trusting a saved response ledger.
+- Made household recovery fail closed when its active-profile reference is missing or invalid. The app keeps all
+  records hidden and clears the root draft until a surviving local profile is explicitly selected. It restores only
+  the active profile's keyed snapshot, validates snapshot ownership, and blocks demo loading during recovery,
+  preventing one household member's saved work from appearing under another person's session.
+- Hardened optional-service extraction: blank documents and unreadable PDF/DOCX uploads return a clear validation
+  error, and HTML extraction ignores hidden metadata/embedded content that could distort job-keyword analysis.
+- Added regressions for uncited qualitative claims, forged local-rule provenance and placement, export-time evidence
+  rebuilding, Jonathan/Denise restart isolation and corrupted snapshots, hidden HTML, blank/malformed imports, and
+  truthfully scoped score wording.
+
 ## 0.7.0 protected-onboarding and household pass — 2026-08-02
 
 - Replaced the earlier situation-picker welcome with a concise four-stage first launch: product value, protected local

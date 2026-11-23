@@ -53,6 +53,10 @@ enum LocalExportService {
         guard !SensitiveContentPolicy.hasCriticalFinding(in: request.resumeText) else {
             throw ExportError.criticalSensitiveContent
         }
+        let canonicalEvidence = LocalCareerEngine.canonicalEvidence(
+            resumeText: request.resumeText,
+            profile: request.profile
+        )
         let approved = request.response.proposals.filter {
             [.approved, .edited].contains($0.status)
         }
@@ -76,7 +80,7 @@ enum LocalExportService {
             }
             let validation = TruthLock.validate(
                 proposal,
-                evidence: request.response.evidence,
+                evidence: canonicalEvidence,
                 targetTitle: request.response.job.title
             )
             guard validation.accepted else {
@@ -260,7 +264,7 @@ enum LocalExportService {
         Keep this file private. Do not upload it as a resume or send it to an employer.
 
         DOCUMENT CHECKS
-        Qualification coverage: \(request.response.scores.qualificationCoverage)/100
+        Job-keyword overlap: \(request.response.scores.qualificationCoverage)/100
         Evidence strength: \(request.response.scores.evidenceStrength)/100
         Acronym clarity: \(request.response.scores.acronymClarity)/100
         \(request.response.scores.disclaimer)

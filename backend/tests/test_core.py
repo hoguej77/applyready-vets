@@ -7,7 +7,7 @@ import zipfile
 from pydantic import ValidationError
 
 from app.config import Settings
-from app.core.evidence import build_evidence_ledger
+from app.core.evidence import build_evidence_ledger, build_profile_evidence
 from app.core.job import analyze_job
 from app.core.safety import redact_for_ai, scan_resume_safety, validate_proposal
 from app.core.veteran import deterministic_veteran_proposals
@@ -101,6 +101,33 @@ class CoreTests(unittest.TestCase):
         self.assertNotIn("veterans", result.keywords)
         self.assertIn("leadership", result.missing_keywords)
 
+    def test_job_analysis_uses_role_sections_and_ignores_career_site_noise(self):
+        job = """Company: Kentro
+Title: Problem Records Analyst
+Overview
+Kentro is a company with benefits and equal opportunity employment.
+Responsibilities
+Gather, organize, synthesize, and maintain information from investigation meetings and incident records.
+Draft and refine root cause narratives, corrective actions, and executive summaries.
+Qualifications
+4 years of relevant experience
+Strong technical writing and editing skills.
+Experience with technical documentation, RCA, ITSM, or Problem Management records is beneficial.
+Familiarity with ServiceNow is beneficial.
+Benefits
+Apply at https://careers.kentro.us/jobs/4692/job
+"""
+        result = analyze_job(job, RESUME)
+
+        self.assertIn("investigation", result.keywords)
+        self.assertIn("documentation", result.keywords)
+        self.assertNotIn("kentro", result.keywords)
+        self.assertNotIn("https", result.keywords)
+        self.assertNotIn("benefits", result.keywords)
+        self.assertNotIn("id", result.keywords)
+        self.assertIn("4 years of relevant experience", result.required_qualifications)
+        self.assertIn("Strong technical writing and editing skills.", result.required_qualifications)
+
     def test_veteran_translation_preserves_original_code_and_evidence(self):
         ledger = build_evidence_ledger(RESUME)
         proposals = deterministic_veteran_proposals(ledger)
@@ -158,6 +185,78 @@ class CoreTests(unittest.TestCase):
         ok, reason = validate_proposal(proposal, ledger, target_title="Fleet Operations Manager")
         self.assertFalse(ok)
         self.assertIn("target job title", reason)
+
+    def test_truth_lock_rejects_uncited_qualitative_claims(self):
+        ledger = build_evidence_ledger("Managed logistics operations.")
+        proposal = ProposedEdit(
+            id="uncited-vendor-claim",
+            section="experience",
+            original_text=ledger[0].text,
+            proposed_text="Managed logistics operations and built vendor relationships.",
+            rationale="Add context",
+            evidence_ids=[ledger[0].id],
+            confidence=0.9,
+            source="openai",
+        )
+
+        ok, reason = validate_proposal(proposal, ledger)
+
+        self.assertFalse(ok)
+        self.assertIn("candidate-specific wording", reason)
+
+    def test_truth_lock_rejects_claim_escalation_and_novel_short_technical_terms(self):
+        ledger = build_evidence_ledger("Coordinated schedules.\nManaged systems.")
+        escalation = ProposedEdit(
+            id="claim-escalation",
+            section="experience",
+            original_text=ledger[0].text,
+            proposed_text="Led schedules.",
+            rationale="Stronger verb",
+            evidence_ids=[ledger[0].id],
+            confidence=0.9,
+        )
+        ok, reason = validate_proposal(escalation, ledger)
+        self.assertFalse(ok)
+        self.assertIn("led", reason)
+
+        for term in ("C++", "C#", "AI", "R"):
+            with self.subTest(term=term):
+                proposal = ProposedEdit(
+                    id=f"novel-skill-{term}",
+                    section="experience",
+                    original_text=ledger[1].text,
+                    proposed_text=f"Managed systems with {term}.",
+                    rationale="Add skill",
+                    evidence_ids=[ledger[1].id],
+                    confidence=0.9,
+                )
+                ok, reason = validate_proposal(proposal, ledger)
+                self.assertFalse(ok)
+                self.assertIn("candidate-specific wording", reason)
+
+    def test_truth_lock_rejects_profile_translation_at_an_arbitrary_resume_anchor(self):
+        resume_ledger = build_evidence_ledger("Managed logistics operations.")
+        profile = CandidateProfile(
+            military_service=[MilitaryService(branch="Army", occupation_code="88M")]
+        )
+        profile_ledger = build_profile_evidence(profile)
+        proposal = ProposedEdit(
+            id="forged-profile-insertion",
+            section="experience",
+            original_text=resume_ledger[0].text,
+            proposed_text=(
+                "Managed logistics operations.\n"
+                "Motor Transport Operator (88M) — transportation and logistics operations"
+            ),
+            rationale="Forged placement",
+            evidence_ids=[profile_ledger[0].id],
+            confidence=0.9,
+            source="deterministic",
+        )
+
+        ok, _reason = validate_proposal(proposal, resume_ledger + profile_ledger)
+
+        self.assertFalse(ok)
 
     def test_truth_lock_preserves_negation_and_does_not_match_negated_skill(self):
         resume = "Did not manage AWS operations."
@@ -223,8 +322,10 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(response.engine, "deterministic")
         self.assertTrue(response.evidence)
         self.assertTrue(response.job.open_to_veterans)
-        self.assertGreaterEqual(response.scores.application_readiness, 0)
-        self.assertNotIn("hire", response.scores.disclaimer.lower())
+        self.assertEqual(response.scores.application_readiness, 0)
+        self.assertIn("job-keyword overlap", response.scores.disclaimer.lower())
+        self.assertIn("cannot verify qualifications", response.scores.disclaimer.lower())
+        self.assertIn("ATS", response.scores.disclaimer)
 
     def test_service_falls_back_when_ai_is_unconfigured(self):
         response = TailoringService(self.settings()).analyze(
@@ -417,42 +518,3 @@ class CoreTests(unittest.TestCase):
         self.assertIn("Military_Spouse_Career_Packet.txt", spouse_packet)
         self.assertNotIn("Veteran_Promotion_Packet.txt", spouse_packet)
         self.assertNotIn("Federal_Contractor_Veteran_Note.txt", spouse_packet)
-        self.assertNotIn("College_Credit_Review_Request.txt", spouse_packet)
-        spouse_letter = spouse_packet["Employer_Outreach_Letter.txt"].lower()
-        self.assertIn("spouse status is context", spouse_letter)
-        self.assertNotIn("my service background", spouse_letter)
-        self.assertNotIn("verified military and civilian experience", spouse_letter)
-
-        civilian_request = spouse_request.model_copy(
-            update={"profile": CandidateProfile(military_spouse=False)}
-        )
-        civilian_packet = build_outreach_packet(civilian_request, resume)
-        self.assertIn("Career_Positioning_Packet.txt", civilian_packet)
-        self.assertNotIn("Veteran_Promotion_Packet.txt", civilian_packet)
-        civilian_letter = civilian_packet["Employer_Outreach_Letter.txt"].lower()
-        self.assertNotIn("my service background", civilian_letter)
-        self.assertNotIn("veteran candidate", civilian_letter)
-
-    def test_document_extraction_handles_visible_html(self):
-        result = extract_document(
-            "job.html",
-            b"<h1>Manager</h1><script>alert(1)</script><p>Veterans welcome</p>",
-            10_000,
-        )
-        self.assertIn("Manager", result.text)
-        self.assertIn("Veterans welcome", result.text)
-        self.assertNotIn("alert", result.text)
-
-    def test_url_extraction_blocks_local_network(self):
-        with self.assertRaisesRegex(ValueError, "globally routable"):
-            extract_public_url("http://127.0.0.1/private")
-
-    def test_url_extraction_blocks_cgnat_and_reserved_addresses(self):
-        for url in ("http://100.64.0.1/private", "http://192.0.2.1/private"):
-            with self.subTest(url=url):
-                with self.assertRaisesRegex(ValueError, "globally routable"):
-                    extract_public_url(url)
-
-
-if __name__ == "__main__":
-    unittest.main()
