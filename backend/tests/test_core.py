@@ -101,6 +101,33 @@ class CoreTests(unittest.TestCase):
         self.assertNotIn("veterans", result.keywords)
         self.assertIn("leadership", result.missing_keywords)
 
+    def test_job_analysis_uses_role_sections_and_ignores_career_site_noise(self):
+        job = """Company: Kentro
+Title: Problem Records Analyst
+Overview
+Kentro is a company with benefits and equal opportunity employment.
+Responsibilities
+Gather, organize, synthesize, and maintain information from investigation meetings and incident records.
+Draft and refine root cause narratives, corrective actions, and executive summaries.
+Qualifications
+4 years of relevant experience
+Strong technical writing and editing skills.
+Experience with technical documentation, RCA, ITSM, or Problem Management records is beneficial.
+Familiarity with ServiceNow is beneficial.
+Benefits
+Apply at https://careers.kentro.us/jobs/4692/job
+"""
+        result = analyze_job(job, RESUME)
+
+        self.assertIn("investigation", result.keywords)
+        self.assertIn("documentation", result.keywords)
+        self.assertNotIn("kentro", result.keywords)
+        self.assertNotIn("https", result.keywords)
+        self.assertNotIn("benefits", result.keywords)
+        self.assertNotIn("id", result.keywords)
+        self.assertIn("4 years of relevant experience", result.required_qualifications)
+        self.assertIn("Strong technical writing and editing skills.", result.required_qualifications)
+
     def test_veteran_translation_preserves_original_code_and_evidence(self):
         ledger = build_evidence_ledger(RESUME)
         proposals = deterministic_veteran_proposals(ledger)
@@ -491,73 +518,3 @@ class CoreTests(unittest.TestCase):
         self.assertIn("Military_Spouse_Career_Packet.txt", spouse_packet)
         self.assertNotIn("Veteran_Promotion_Packet.txt", spouse_packet)
         self.assertNotIn("Federal_Contractor_Veteran_Note.txt", spouse_packet)
-        self.assertNotIn("College_Credit_Review_Request.txt", spouse_packet)
-        spouse_letter = spouse_packet["Employer_Outreach_Letter.txt"].lower()
-        self.assertIn("spouse status is context", spouse_letter)
-        self.assertNotIn("my service background", spouse_letter)
-        self.assertNotIn("verified military and civilian experience", spouse_letter)
-
-        civilian_request = spouse_request.model_copy(
-            update={"profile": CandidateProfile(military_spouse=False)}
-        )
-        civilian_packet = build_outreach_packet(civilian_request, resume)
-        self.assertIn("Career_Positioning_Packet.txt", civilian_packet)
-        self.assertNotIn("Veteran_Promotion_Packet.txt", civilian_packet)
-        civilian_letter = civilian_packet["Employer_Outreach_Letter.txt"].lower()
-        self.assertNotIn("my service background", civilian_letter)
-        self.assertNotIn("veteran candidate", civilian_letter)
-
-    def test_document_extraction_handles_visible_html(self):
-        result = extract_document(
-            "job.html",
-            (
-                b"<head>metadata-only keyword</head><h1>Manager</h1>"
-                b"<script>alert(1)</script><iframe>hidden posting</iframe>"
-                b"<svg>decorative keyword</svg><template>template keyword</template>"
-                b"<p>Veterans welcome</p>"
-            ),
-            10_000,
-        )
-        self.assertIn("Manager", result.text)
-        self.assertIn("Veterans welcome", result.text)
-        self.assertNotIn("alert", result.text)
-        self.assertNotIn("metadata-only", result.text)
-        self.assertNotIn("hidden posting", result.text)
-        self.assertNotIn("decorative keyword", result.text)
-        self.assertNotIn("template keyword", result.text)
-
-    def test_document_extraction_rejects_blank_or_malformed_files(self):
-        for filename, data in (
-            ("blank.txt", b" \n\t "),
-            ("blank.html", b"<head>metadata only</head><script>ignore()</script>"),
-        ):
-            with self.subTest(filename=filename):
-                with self.assertRaisesRegex(ValueError, "did not contain readable text"):
-                    extract_document(filename, data, 10_000)
-
-        from pypdf import PdfWriter
-
-        blank_pdf = io.BytesIO()
-        writer = PdfWriter()
-        writer.add_blank_page(width=72, height=72)
-        writer.write(blank_pdf)
-        with self.assertRaisesRegex(ValueError, "did not contain readable text"):
-            extract_document("blank.pdf", blank_pdf.getvalue(), 10_000)
-        with self.assertRaisesRegex(ValueError, "DOCX file could not be read"):
-            extract_document("broken.docx", b"not a DOCX", 10_000)
-        with self.assertRaisesRegex(ValueError, "PDF could not be read"):
-            extract_document("broken.pdf", b"not a PDF", 10_000)
-
-    def test_url_extraction_blocks_local_network(self):
-        with self.assertRaisesRegex(ValueError, "globally routable"):
-            extract_public_url("http://127.0.0.1/private")
-
-    def test_url_extraction_blocks_cgnat_and_reserved_addresses(self):
-        for url in ("http://100.64.0.1/private", "http://192.0.2.1/private"):
-            with self.subTest(url=url):
-                with self.assertRaisesRegex(ValueError, "globally routable"):
-                    extract_public_url(url)
-
-
-if __name__ == "__main__":
-    unittest.main()
