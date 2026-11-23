@@ -17,6 +17,28 @@ SCAM_PATTERNS = {
     "gift_crypto_wire": re.compile(r"(?:gift card|bitcoin|crypto|wire transfer)", re.I),
 }
 
+# These terms come from career-site chrome, legal copy, URLs, and general job-board
+# boilerplate. They are not useful evidence gaps and should never become a question
+# such as "Do you have experience with https?".
+KEYWORD_NOISE = {
+    "https", "http", "www", "com", "us", "benefits", "employment", "opportunity",
+    "commitment", "united", "states", "professional", "other", "all", "companies",
+    "equal", "protected", "required", "requirements", "qualifications", "responsibilities",
+    "description", "overview", "apply", "application", "applicants", "career", "careers",
+    "jobs", "privacy", "terms", "copyright", "rights", "reserved",
+    # Generic prose and opaque query-string fragments are not a candidate's
+    # experience gap. Keep concrete technical/domain terms instead.
+    "information", "findings", "management", "into", "content", "appropriate", "knowledge",
+    "strong", "ability", "id", "c0", "relevant", "synthesize", "maintain", "sources",
+    "statements", "complex", "clear", "written", "support", "related", "technical",
+}
+
+ROLE_SECTION_STARTS = {"responsibilities", "qualifications", "what you will do", "what you'll do"}
+ROLE_SECTION_ENDS = {
+    "benefits", "the company", "industry recognition", "how to apply", "commitment equal opportunity",
+    "accommodations", "equal opportunity employment", "faq",
+}
+
 
 def analyze_job(job_text: str, resume_text: str) -> JobAnalysis:
     lines = normalized_lines(job_text)
@@ -25,22 +47,14 @@ def analyze_job(job_text: str, resume_text: str) -> JobAnalysis:
     if not title and lines:
         title = lines[0][:100]
 
-    requirements = [
-        line[:500]
-        for line in lines
-        if re.search(r"\b(?:required|requirements|must have|minimum qualification|specialized experience)\b", line, re.I)
-    ][:12]
-    keyword_lines = [
-        line
-        for line in lines
-        if not re.match(r"^(?:company|job\s*title|title)\s*[:\-]", line, re.I)
-        and not re.search(
-            r"\b(?:open to veterans|veterans recruitment appointment|vra|veoa|veterans'? preference)\b",
-            line,
-            re.I,
-        )
-    ]
-    keywords = ranked_keywords("\n".join(keyword_lines), 30)
+    role_lines = _role_content(lines)
+    requirements = [line[:500] for line in role_lines if _looks_like_requirement(line)][:12]
+    excluded_tokens = KEYWORD_NOISE | set(clean_company_tokens(company)) | set(clean_company_tokens(title))
+    keywords = [
+        keyword
+        for keyword in ranked_keywords("\n".join(role_lines), 60)
+        if keyword not in excluded_tokens and not keyword.startswith(("http", "www")) and "." not in keyword
+    ][:30]
     resume_tokens = set(affirmed_tokens(resume_text))
     missing = [token for token in keywords if token not in resume_tokens][:12]
     lower = job_text.lower()
@@ -58,6 +72,49 @@ def analyze_job(job_text: str, resume_text: str) -> JobAnalysis:
         )),
         risk_flags=risks,
     )
+
+
+def _role_content(lines: list[str]) -> list[str]:
+    """Keep duties and qualifications while discarding careers-site boilerplate."""
+    selected: list[str] = []
+    in_role_section = False
+    found_role_section = False
+    for line in lines:
+        normalized = line.casefold().rstrip(":")
+        if normalized in ROLE_SECTION_STARTS:
+            in_role_section = True
+            found_role_section = True
+            continue
+        if in_role_section and any(normalized.startswith(marker) for marker in ROLE_SECTION_ENDS):
+            break
+        if in_role_section and not re.search(r"https?://|www\.", line, re.I):
+            selected.append(line)
+
+    if found_role_section:
+        return selected
+
+    # Small copied job posts often do not retain headings. In that case, still
+    # reject headers, veteran-eligibility notices, and URL-heavy boilerplate.
+    return [
+        line
+        for line in lines
+        if not re.match(r"^(?:company|job\s*title|title)\s*[:\-]", line, re.I)
+        and not re.search(r"\b(?:open to veterans|vra|veoa|veterans'? preference)\b", line, re.I)
+        and not re.search(r"https?://|www\.", line, re.I)
+    ]
+
+
+def _looks_like_requirement(line: str) -> bool:
+    return bool(re.search(
+        r"^(?:\d+\+?\s+years?\b|strong\b|demonstrated\b|ability\b|experience\b|"
+        r"familiarity\b|knowledge\b|u\.?s\.?\s+citizen\b|willing\b|must\b|minimum\b)",
+        line,
+        re.I,
+    ))
+
+
+def clean_company_tokens(value: str) -> list[str]:
+    return [token for token in re.findall(r"[A-Za-z][A-Za-z0-9+#./-]{1,}", value.casefold())]
 
 
 def build_gap_questions(job: JobAnalysis, limit: int = 6) -> list[GapQuestion]:
